@@ -37,11 +37,11 @@
 	$(document).ready(function() {
 		var config = {
 			search: {
-				//enabled: false,
+				enabled: false,
 				//bySubstr: false,
 				splitWords: true,
 				minLength: 1,
-				/*ajax: {
+				ajax: {
 					enabled: true,
 					config: {
 						url: 'http://localhost/test/ajax.php',
@@ -52,7 +52,7 @@
 							return item.value + item.text;
 						}
 					}
-				}*/
+				}
 			},
 			singleMode: {
 			//	allowDeselect: true,
@@ -78,12 +78,12 @@
 				},
 
 				closeOnBlur: false,
-				closeAfterChange: false,
+				//closeAfterChange: false,
 				resetAfterClose: false,
 				openAfterInit: true,
 
 				groups: {
-					allowCollapse: false,
+					//allowCollapse: false,
 					collapseOnInit: true
 				},
 

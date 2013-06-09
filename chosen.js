@@ -1,11 +1,3 @@
-/**
- * This is a fork of this plugin: https://github.com/harvesthq/chosen
- *
- * Styles and assets are copied form there. Javascript is completely rewritten. A lot of new features added.
- *
- * @author Jeron Diovis <void.jeron.diovis@gmail.com>
- * @license MIT license
- */
 (function ($) {
 
 	// -----------------------------------------------
@@ -267,6 +259,7 @@
 					choiceTemplate: '{text}',
 					choiceContainerSelector: undefined, // allows to place choices in any element you wish
 					useAutosuggestLayout: true,
+					openAutosuggestOnClick: true,
 					switchToChoicesOnBackspace: true, // whether to allow to switch focus to last choice by pressing backspace when container is empty
 					blockDropdownOnLimitReached: false // denies to open dropdown when max allowed item count is selected
 				},
@@ -881,13 +874,25 @@
 					this.trigger('chzn:dropdown:open');
 				}
 			});
+
+			if (this.options.multiMode.openAutosuggestOnClick) {
+				var opener = $.proxy(this.trigger, this, 'chzn:dropdown:open');
+				this.dropdownHeader.click(opener);
+				if (!this.isChoicesOutside()) {
+					this.choiceList.on('click', function(e) {
+						if (e.target === e.currentTarget) {
+							opener();
+						}
+					});
+				}
+			}
 		}
 
 		this.container.append(this.dropdown).insertAfter(this.$el);
 
 		// -------------------------
 
-		//this.$el.hide();
+		this.$el.hide();
 		this.initCss(); // call it AFTER container is rendered, to apply all styles first
 		this.bindKeydownHandler();
 	}
@@ -1329,7 +1334,7 @@
 				},
 
 				'chzn:search-list:clear-highlight': function() {
-					getSearchItems().add(this.ui.itemCreator).removeClass(classes.highlighted);
+					getSearchItems().add(this.ui.itemCreator).add(getSearchItemGroups()).removeClass(classes.highlighted);
 				},
 
 				'chzn:search-list:set-selected': function(e, index, isSelected) {
@@ -1760,6 +1765,11 @@
 
 			this.keydownTarget.keydown(function(e) {
 				var self = $(this);
+
+				var highlightedItem = chosenUI.searchList.children('.highlighted'); // TODO: css dependency
+				var groupSelector = chosenUI.getSearchItemGroupSelector();
+				var isGroup = highlightedItem.is(groupSelector);
+
 				switch (e.keyCode) {
 					// arrows up-down
 					case 38:
@@ -1768,9 +1778,7 @@
 						var isForward = e.keyCode === 40;
 						if (chosenUI.dropdown.is(':visible')) {
 							if (e.ctrlKey) {
-								var highlightedItem = chosenUI.searchList.children('.highlighted'); // TODO: css dependency
-								var groupSelector = chosenUI.getSearchItemGroupSelector();
-								if (highlightedItem.is(groupSelector)) {
+								if (isGroup) {
 									chosenUI.trigger('chzn:search-list:toggle-group', [highlightedItem.index(groupSelector), !isForward])
 								}
 							} else {
@@ -1787,12 +1795,13 @@
 						break;
 					case 13: // enter
 						e.preventDefault(); //prevent to submit form, if it exists
-						var activeItem = chosenUI.searchList.children('.highlighted'); // TODO: css dependency
-						if (activeItem.length) {
-							if (!activeItem.is(chosenUI.itemCreator)) {
-								chosenUI.chosen.selectItem(activeItem.data('option-index'));
+						if (highlightedItem.length) {
+							if (isGroup) {
+								chosenUI.trigger('chzn:search-list:toggle-group', [highlightedItem.index(groupSelector)])
+							} else if (!highlightedItem.is(chosenUI.itemCreator)) {
+								chosenUI.chosen.selectItem(highlightedItem.data('option-index'));
 							} else {
-								activeItem.trigger('activate');
+								highlightedItem.trigger('activate');
 							}
 						}
 						break;

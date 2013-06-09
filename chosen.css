@@ -150,9 +150,11 @@
     cursor:text;
     line-height:27px;
     padding-left: 5px;
+    width:100%;
+    display:block;
 }
 
-/*.chzn-container-multi*/ .chzn-choices {
+.chzn-choices {
   font-size: 13px;
   background-color: #fff;
   margin: 0;
@@ -167,10 +169,10 @@
 .chzn-choices > * {
     float: left;
 }
-/*.chzn-container-multi*/ .chzn-choices li {
+.chzn-choices li {
   list-style: none;
 }
-/*.chzn-container-multi*/ .chzn-choices .search-field {
+.chzn-choices .search-field {
   white-space: nowrap;
   margin: 0;
   padding: 0 0 0 5px;
