@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<link rel="stylesheet" href="chosen.css"/>
+	<script type="text/javascript" src="jquery.js"></script>
+	<script type="text/javascript" src="chosen.js"></script>
+	<title>Chosen2</title>
+</head>
+<body>
+	<div id="choices"></div>
+	<hr>
+
+	<!--<form action="/">-->
+		<select multiple name="chosen[]" id="chosen" style="width:350px">
+				<option value="">I'm a philologist</option>
+				<option value=1 data-main="JS">Javascript</option>
+				<option value="2" selected>Python</option>
+			<optgroup label="group" disabled>
+				<option value="3">Coffee Script</option>
+				<option value="4" selected>LISP</option>
+			</optgroup>
+			<option value="5">Go</option>
+			<option value="6" data-fixed="true" selected>C++</option>
+			<optgroup label="group 2">
+				<option value="7" disabled>Erlang</option>
+				<option value="8" >Haskell</option>
+			</optgroup>
+			<option value="9" disabled selected>Prolog</option>
+			<option value="10">Ruby</option>
+		</select>
+	<!--</form>-->
+
+	<hr>
+</body>
+
+<script type="text/javascript">
+	$(document).ready(function() {
+		var config = {
+			search: {
+				//enabled: false,
+				//bySubstr: false,
+				splitWords: true,
+				minLength: 1,
+				/*ajax: {
+					enabled: true,
+					config: {
+						url: 'http://localhost/test/ajax.php',
+					},
+					mapping: {
+						//'text': 'lalala',
+						'data-data': function(item) {
+							return item.value + item.text;
+						}
+					}
+				}*/
+			},
+			singleMode: {
+			//	allowDeselect: true,
+			},
+			multiMode: {
+				//maxSelected: 4
+			},
+
+			createItems: {
+				enabled: true
+			},
+
+			ui: {
+				createItems: {
+					message: 'Create <b>new</b> <div>item</div> "{keyword}"',
+				},
+				multiMode: {
+					//choiceContainerSelector: '#choices',
+					//useAutosuggestLayout: false,
+					//switchToChoicesOnBackspace: false,
+					choiceTemplate: '{text}',
+					blockDropdownOnLimitReached: true,
+				},
+
+				closeOnBlur: false,
+				closeAfterChange: false,
+				resetAfterClose: false,
+				openAfterInit: true,
+
+				groups: {
+					allowCollapse: false,
+					collapseOnInit: true
+				},
+
+				search: {
+					//tagName: 'div',
+					excludeDisabled: false,
+					itemTemplate: 'Your <i>item</i> <div><b>{text}</b></div>{data.main}',
+					//itemTemplate: '<label><input type="checkbox">{0}</label>'
+					groupTemplate: '<i>{label}</i>',
+				}
+			},
+
+			/*beforeInit: function() {
+				 ch.ui.dropdownHeader.on('click', function() {
+				 	ch.trigger('chzn:dropdown:open');
+				 });
+
+				 ch.bind('chzn:option-deselected', function(e, option) {
+					if ($(option).hasClass('new')) {
+						ch.removeItem(option.index)
+					}
+				 });
+
+				var ch = this;
+				ch.unbind('chzn.search-list.set-selected');
+
+				var selectedChangedHandler = function(index, isSelected) {
+					ch.ui.getSearchItemByOptionIndex(index).find(':checkbox').prop('checked', isSelected);
+				};
+
+				ch.bind('chzn.data.option-deselected', function(e, option) {
+					selectedChangedHandler(option.index, false);
+				});
+				ch.bind('chzn.data.option-selected', function(e, option) {
+					selectedChangedHandler(option.index, true);
+				});
+
+				var handler = function(e) {
+					var li = $(e.currentTarget);
+					var chb = li.find(':checkbox');
+
+					if (!$(e.target).is(':input, label')) {
+						e.stopImmediatePropagation();
+						chb.click();
+						return;
+					}
+
+					var meth = chb.get(0).checked ? 'selectItem' : 'deselectItem';
+					ch[meth](li.data('option-index'))
+				};
+
+				ch.ui.searchList.off('click.chzn:search:select-item');
+				ch.ui.searchList.on('click.chzn.custom', ch.ui.getSearchItemSelector(), handler);
+			}*/
+		};
+
+		$('#chosen').chosen(config);
+
+		$('#chosen').clone().prop('multiple', false).appendTo(document.body).chosen($.extend(true, {}, config, {
+			singleMode: {
+				allowDeselect: true
+			},
+		}));
+	})
+</script>
+</html>
