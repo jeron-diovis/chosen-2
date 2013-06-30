@@ -100,6 +100,8 @@
 					collapseOnInit: false
 				},
 
+				focusable: '', // specify selectors for elements, click on which will not set focus to search field. Can be useful, if you use own inputs inside widget
+
 				search: {
 					tagName: 'ul',
 					itemTemplate: '{text}',
@@ -890,10 +892,11 @@
 					// emulate 'stopPropagation', to do not perform same handling multiple times, but allow use external listeners
 					if (e.target !== e.currentTarget) return;
 
-					if (!isInsideContainer(e, true)) return;
-
-					// wherever you click inside container, it always must be active - has corresponding css classes and has a keydown watcher focused
-					chosenUI.trigger('chzn:container:activate');
+					var eventName = 'chzn:container:activate';
+					if ($(e.currentTarget).closest(chosenUI.options.focusable).length > 0) {
+						eventName += '.highlight';
+					}
+					chosenUI.trigger(eventName);
 				});
 
 			var blurEventName = 'click.chzn:container:blur-watcher';
