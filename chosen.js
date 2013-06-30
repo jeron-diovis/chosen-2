@@ -1066,16 +1066,34 @@
 
 			//------------------------------------
 
+			var getSelectionEventName = 'chzn:list:on-get-selection';
+			var looseSelectionEventName = 'chzn:list:on-loose-selection';
+
 			list
 				.on('click.chzn:search:select-item', resultSelector + '.' + classes.highlighted,
 					$.proxy(function(e) { this.chosen.selectItem($(e.currentTarget).data('option-index')); }, this)
 				)
-				.on({
-					'mouseover.chzn:search:highlight': function() { $(this).addClass(classes.highlighted).siblings().removeClass(classes.highlighted); },
-					'mouseleave.chzn:search:unhighlight': function() { $(this).removeClass(classes.highlighted); }
-				},
-				selectableResultsSelector
-			);
+				.on($.extend(
+					{
+						'mouseenter.chzn:search:highlight': function() {
+							$(this).trigger(getSelectionEventName).siblings().trigger(looseSelectionEventName);
+						},
+						'mouseleave.chzn:search:unhighlight': function() {
+							$(this).trigger(looseSelectionEventName);
+						}
+					},
+					(function () {
+						var config = {};
+						config[getSelectionEventName] = function() {
+							$(this).addClass(classes.highlighted);
+						};
+						config[looseSelectionEventName] = function() {
+							$(this).removeClass(classes.highlighted);
+						};
+						return config;
+					})()),
+					selectableResultsSelector
+				);
 
 			if (this.options.groups.allowCollapse) {
 				list.on('click.chzn:search:toggle-group', '.group-result',  { chosenUI: this }, function(e) {
@@ -1168,8 +1186,8 @@
 					if (highlightedItem.prop('disabled')) {
 						return;
 					}
-					items.removeClass(classes.highlighted);
-					highlightedItem.addClass(classes.highlighted)
+					items.not(highlightedItem).trigger(looseSelectionEventName);
+					highlightedItem.trigger(getSelectionEventName);
 				},
 
 				'chzn:search-list:clear-highlight': function() {
@@ -1256,10 +1274,8 @@
 					if (this.options.createItems.enabled) {
 						var isExactMatch = $(this.el.options).is(function() { return this.text.toLowerCase() === keyword.toLowerCase(); });
 						if (!isExactMatch) {
-							//this.ui.itemCreator.html(utils.format(this.ui.options.createItems.message, { keyword: utils.htmlHelper.encode(keyword) })).show();
 							this.trigger('chzn:item-creator:render', [keyword]);
 						} else {
-							//this.ui.itemCreator.hide().empty();
 							this.trigger('chzn:item-creator:clear');
 						}
 					}
@@ -1848,15 +1864,19 @@
 						nextItem = availableItems[config.forward ? 'first' : 'last']();
 						break;
 					case 'clear':
-						currentItem.removeClass(config.highlightedClass);
+						// no action
 						break;
 					default:
+						// no action
 				}
 			}
 
+			currentItem.removeClass(config.highlightedClass);
+			currentItem.trigger('chzn:list:on-loose-selection');
+
 			if (nextItem.length) {
-				currentItem.removeClass(config.highlightedClass);
 				nextItem.addClass(config.highlightedClass);
+				nextItem.trigger('chzn:list:on-get-selection');
 			}
 
 			return {
