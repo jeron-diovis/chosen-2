@@ -994,9 +994,10 @@
 			var searchField = $('<input>', {
 				'type': 'text',
 				'placeholder': this.options.search.placeholder,
-				'class': 'default',
-				'autocomplete': 'off'
+				'class': 'default'
 			});
+
+			searchField.prop('autocomplete', 'off');
 
 			var chosenUI = this;
 			var handler, prevValue = '', isFiltered = false;
