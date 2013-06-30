@@ -1254,10 +1254,10 @@
 						var isExactMatch = $(this.el.options).is(function() { return this.text.toLowerCase() === keyword.toLowerCase(); });
 						if (!isExactMatch) {
 							//this.ui.itemCreator.html(utils.format(this.ui.options.createItems.message, { keyword: utils.htmlHelper.encode(keyword) })).show();
-							this.trigger('chzn:item-creator:render');
+							this.trigger('chzn:item-creator:render', [keyword]);
 						} else {
 							//this.ui.itemCreator.hide().empty();
-							this.trigger('chzn:item-creator:dispose');
+							this.trigger('chzn:item-creator:clear');
 						}
 					}
 
@@ -1425,7 +1425,7 @@
 						))
 						.show();
 				},
-				'chzn:item-creator:dispose': function() {
+				'chzn:item-creator:clear': function() {
 					chosen.ui.itemCreator.hide().empty();
 				}
 			});
