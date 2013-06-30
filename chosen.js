@@ -1,194 +1,12 @@
 /**
-* This is a fork of this plugin: https://github.com/harvesthq/chosen
-*
-* Styles and assets are copied form there. Javascript is completely rewritten. A lot of new features added.
-*
-* @author Jeron Diovis <void.jeron.diovis@gmail.com>
-* @license MIT license
-*/
+ * This is a fork of this plugin: https://github.com/harvesthq/chosen
+ *
+ * Styles and assets are copied form there. Javascript is completely rewritten. A lot of new features added.
+ *
+ * @author Jeron Diovis <void.jeron.diovis@gmail.com>
+ * @license MIT license
+ */
 (function ($) {
-
-	// -----------------------------------------------
-
-	var utils = {
-
-		log: function(type) {
-			if (!window.console) return;
-			if (!this.enabled) return;
-			var method, args = arguments;
-			if ($.inArray(arguments[0], ['log', 'info', 'warn', 'error', 'dir', 'group', 'groupEnd', 'profile', 'profileEnd']) < 0) {
-				method = 'log';
-			} else {
-				method = arguments[0];
-				args = $.makeArray(arguments).slice(1);
-			}
-			console[method].apply(console, args);
-		},
-
-		generateRandomChar: function () {
-			var chars, index;
-			chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-			index = Math.floor(Math.random() * chars.length);
-			return chars.substr(index, 1);
-		},
-
-		generateRandomId: function () {
-			var string;
-			string = "chosen_" + this.generateRandomChar();
-			while ($("#" + string).length > 0) {
-				string += this.generateRandomChar();
-			}
-			return string;
-		},
-
-		/**
-		 * Simple template engine
-		 * Supports reading of object's nested.properties.including.0.numeric.1.keys.
-		 *
-		 * @param template String Template string. Placeholders must be wrapped to {curly_brackets}.
-		 * @param dataObj Object|Array
-		 * @param defaults Object|Array (optional)
-		 */
-		format: (function () {
-			function parsePath(path, data, defaults) {
-				var pathParts = path.split('.');
-				var result = data;
-				while (pathParts.length > 0 ) {
-					result = result[pathParts.shift()];
-					if (result === undefined) {
-						if (defaults !== undefined) {
-							result = parsePath(path, defaults);
-						} else {
-							result = '';
-						}
-						break;
-					}
-				}
-				return result;
-			}
-
-			return function(template, dataObj, defaults) {
-				if ( arguments.length === 1 ) {
-					return function() {
-						var args = $.makeArray(arguments);
-						args.unshift(template);
-						return utils.format.apply( this, args );
-					};
-				}
-				template = template.replace(/\{((\w+[:-]?\w*\.?)+)\}/g, function(substr, match) {
-					return parsePath(match, dataObj, defaults);
-				});
-
-				return template;
-			}
-		})(),
-
-		/**
-		 * Performs iteration through given dom nodes according to given config.
-		 * By default iterates only through visible and not disabled nodes, other nodes will be ignored.
-		 *
-		 * @param config Object
-		 *      forward - bool - whether to move from begin to end of list, or vice versa
-		 *      onListEnd - string - what to do if currently selected item is last on specified direction:
-		 *          'stop': do nothing, selection is not changed
-		 *          'clear': clear selection, nothing will be selected
-		 *          'rerun': select first item from opposite list end
-		 *      items - array - items through which we will iterate
-		 *      highlightedClass - string - name of css class, which will indicate selected item
-		 *      filter - function - allows to set additional rules to exclude some items from given set
-		 * @returns Object {
-		 *      movedFrom - previously selected item
-		 *      movedTo - currently selected item
-		 *  }
-		 */
-		moveListSelection: function(config) {
-			config.onListEnd || (config.onListEnd = 'stop');
-			if ($.inArray(config.onListEnd, ['rerun', 'clear', 'stop']) < 0) {
-				throw new Error(utils.format('Unknown option "{0}"', [config.onListEnd]));
-			}
-			var availableItemsSelector = ':visible:not(:disabled)'; // do not use just ':enabled', because by default 'disabled' property is undefined
-			var currentItem, nextItem, availableItems;
-			currentItem = config.items.filter('.' + config.highlightedClass);
-
-			var filter = function(index, item) {
-				item = $(item);
-				return item.is(availableItemsSelector) && (config.filter ? item.is(config.filter) : true);
-			};
-			availableItems = config.items.filter(filter);
-			if (currentItem.length) {
-				nextItem = currentItem[config.forward ? 'nextAll' : 'prevAll']().filter(availableItems).first();
-			} else {
-				// if nothing is selected yet - then on forward movement always first item will be selected, and on backward - depending on 'onListEnd' option
-				currentItem = availableItems.first();
-				nextItem = config.forward ? currentItem : [];
-			}
-
-			if (!nextItem.length) {
-				switch (config.onListEnd) {
-					case 'stop':
-						nextItem = availableItems[config.forward ? 'last' : 'first']();
-						break;
-					case 'rerun':
-						nextItem = availableItems[config.forward ? 'first' : 'last']();
-						break;
-					case 'clear':
-						currentItem.removeClass(config.highlightedClass);
-						break;
-					default:
-				}
-			}
-
-			if (nextItem.length) {
-				currentItem.removeClass(config.highlightedClass);
-				nextItem.addClass(config.highlightedClass);
-			}
-
-			return {
-				movedFrom: currentItem,
-				movedTo: nextItem
-			}
-		},
-
-		getAttribute: function(object, attributeName) {
-			var value;
-			if (typeof attributeName === 'function') {
-				value = attributeName(object);
-			} else {
-				if (attributeName.slice(0, 5) === 'data-') {
-					value = $.data(object, attributeName.slice(5));
-				} else {
-					value = object[attributeName];
-				}
-			}
-
-			return value;
-		},
-
-		isOptionDisabled: function(option) {
-			return option.disabled || (option.parentElement.tagName === 'OPTGROUP' && option.parentElement.disabled);
-		},
-
-		// several brutal hacks™ :
-
-		getTextWidth: function(text) {
-			var canvas = $('<span>').hide().text(text).appendTo(document.body);
-			var width = canvas.width();
-			canvas.remove();
-			return width;
-		},
-
-		htmlHelper: (function () {
-			var encoder = $('<div/>');
-			return {
-				encode: function(str) {
-					return encoder.text(str).html();
-				},
-				decode: function(str) {
-					return encoder.html(str).text();
-				}
-			}
-		})()
-	};
 
 	// -----------------------------------------------
 
@@ -530,11 +348,11 @@
 
 		/*enableItem: function(index) {
 		 // TODO
-		},
+		 },
 
 		 disableItem: function(index) {
 		 // TODO
-		},*/
+		 },*/
 
 		addItem: function(config, options) {
 			config || (config = {});
@@ -552,8 +370,7 @@
 			config.value || (config.value = config.text); // just to explicit set tag attribute; internally, browser already sets value for you
 
 			if (!options.save) {
-				config.class || (config.class = '');
-				config.class += 'new';
+				config.class ? (config.class += ' new') : (config.class = 'new');
 			}
 
 			var newOption = $('<option>', config);
@@ -639,6 +456,8 @@
 				var values = $.map(options, prop(propName));
 				result[propName] = update ? (result[propName] || []).concat(values) : values;
 			});
+
+			return this;
 		},
 
 		/**
@@ -846,8 +665,8 @@
 					'class': 'autosuggest-placeholder',
 					'href': 'javascript:void(0)'
 				})
-				.text(this.options.placeholder)
-				.appendTo(searchFieldWrapper);
+					.text(this.options.placeholder)
+					.appendTo(searchFieldWrapper);
 			}
 
 			choiceListContainer.prependTo(this.container).append(searchFieldWrapper);
@@ -993,7 +812,7 @@
 			}
 			return content;
 		},
-		
+
 		isAutosuggest: function() {
 			return this.el.multiple && this.options.multiMode.useAutosuggestLayout;
 		},
@@ -1028,12 +847,13 @@
 				// deny to activate container on _direct_ click on choice list - because, in common case, choice list is independent node, not inside container
 				if (!chosenUI.isAutosuggest() && chosenUI.el.multiple && event.target === chosenUI.choiceList.get(0)) return false;
 
+				// TODO: refactor this, use 'closest'
 				var node = $(event.target);
 				var parentsInside = node.parentsUntil(chosenUI.container);
 				var parents = parentsInside.andSelf().add(parentsInside.last().parent());
-				var result = parents.is(container);
+				var isInside = parents.is(container);
 
-				result = result && !parents.is(chosenUI.getChoiceSelector());
+				isInside = isInside && !parents.is(chosenUI.getChoiceSelector());
 
 				/**
 				 * If container must be deactivated on this event - allow to prevent deactivation, if event is triggered by 'remove choice' button.
@@ -1041,13 +861,13 @@
 				 * And in the same time, we prevent to activate container by clicking 'remove choice' button, even if it is inside container
 				 */
 				if (!isActivating) {
-					result = result || (chosenUI.el.multiple && parents.is('.search-choice-close'));
+					isInside = isInside || (chosenUI.el.multiple && parents.is('.search-choice-close'));
 					if (chosenUI.isAutosuggest()) {
-						result = result || parents.is(chosenUI.getChoiceSelector());
+						isInside = isInside || parents.is(chosenUI.getChoiceSelector());
 					}
 				}
 
-				return result;
+				return isInside;
 			}
 
 			function getFocusTarget() {
@@ -1055,10 +875,10 @@
 			}
 
 			var container = $('<div>', {
-					'id': utils.generateRandomId(),
-					'class': classes.join(' '),
-					'title': this.el.title
-				})
+				'id': utils.generateRandomId(),
+				'class': classes.join(' '),
+				'title': this.el.title
+			})
 				.on('click.chzn:container:watch-focus', '*', function(e) {
 					// emulate 'stopPropagation', to do not perform same handling multiple times, but allow use external listeners
 					if (e.target !== e.currentTarget) return;
@@ -1240,11 +1060,11 @@
 					$.proxy(function(e) { this.chosen.selectItem($(e.currentTarget).data('option-index')); }, this)
 				)
 				.on({
-						'mouseover.chzn:search:highlight': function() { $(this).addClass(classes.highlighted).siblings().removeClass(classes.highlighted); },
-						'mouseleave.chzn:search:unhighlight': function() { $(this).removeClass(classes.highlighted); }
-					},
-					selectableResultsSelector
-				);
+					'mouseover.chzn:search:highlight': function() { $(this).addClass(classes.highlighted).siblings().removeClass(classes.highlighted); },
+					'mouseleave.chzn:search:unhighlight': function() { $(this).removeClass(classes.highlighted); }
+				},
+				selectableResultsSelector
+			);
 
 			if (this.options.groups.allowCollapse) {
 				list.on('click.chzn:search:toggle-group', '.group-result',  { chosenUI: this }, function(e) {
@@ -1454,7 +1274,7 @@
 			var item = $(this.getUiItemTag(), {
 				'class': 'search-result'
 			})
-			.data('option-index', option.index);
+				.data('option-index', option.index);
 
 			item.html(this.render(this.options.search.itemTemplate, this.composeRenderAttributes(option)));
 
@@ -1485,8 +1305,8 @@
 			var item = $(this.getUiItemTag(), {
 				'class': 'group-result'
 			})
-			.data('children-indexes', $.map(optgroup.children, function(option) { return option.index; }))
-			.data('node', optgroup);
+				.data('children-indexes', $.map(optgroup.children, function(option) { return option.index; }))
+				.data('node', optgroup);
 
 			item.html(this.render(this.options.search.groupTemplate, this.composeRenderAttributes(optgroup)));
 
@@ -1510,10 +1330,10 @@
 				'class': 'chzn-single chzn-default',
 				'tabindex': -1
 			})
-			.append([
-				$('<span>', { 'class': 'dropdown-text' }).text(this.options.placeholder),
-				$('<div>', { 'class': 'dropdown-icon' }).append(document.createElement('b'))
-			]);
+				.append([
+					$('<span>', { 'class': 'dropdown-text' }).text(this.options.placeholder),
+					$('<div>', { 'class': 'dropdown-icon' }).append(document.createElement('b'))
+				]);
 
 			selectedItem.on('focus', false); // prevent to show a browser's default border around active link
 
@@ -1574,14 +1394,14 @@
 				chosen.unbind(itemCreatedEventName);
 			};
 
-			itemCreator.bind('activate', function() {
+			var activator = function() {
 				var keyword = chosen.ui.searchField.val();
 				chosen.bind(itemCreatedEventName, itemCreatedListener);
 				chosen.addItem({
 					text: keyword,
 					selected: chosen.ui.options.createItems.selectCreated
 				});
-			});
+			};
 
 			itemCreator.click(function() { $(this).trigger('activate'); });
 
@@ -1639,7 +1459,7 @@
 						chosenUI.trigger('chzn:container:activate');
 						break;
 					default:
-						// no action
+					// no action
 				}
 			});
 
@@ -1735,8 +1555,8 @@
 
 		createChoice: function(option) {
 			var item = $(this.getUiItemTag(), {
-					'class': 'search-choice'
-				})
+				'class': 'search-choice'
+			})
 				.data('option-index', option.index)
 				.append($('<span>').html(this.render(this.options.multiMode.choiceTemplate, this.composeRenderAttributes(option))));
 
@@ -1826,7 +1646,7 @@
 						}
 						break;
 					default:
-						// no action
+					// no action
 				}
 			});
 
@@ -1845,7 +1665,7 @@
 							chosenUI.trigger('chzn:container:deactivate');
 							break;
 						default:
-							// no action
+						// no action
 					}
 				});
 			}
@@ -1875,5 +1695,187 @@
 			}
 		});
 	}
+
+	// -----------------------------------------------
+
+	var utils = {
+
+		log: function(type) {
+			if (!window.console) return;
+			if (!this.enabled) return;
+			var method, args = arguments;
+			if ($.inArray(arguments[0], ['log', 'info', 'warn', 'error', 'dir', 'group', 'groupEnd', 'profile', 'profileEnd']) < 0) {
+				method = 'log';
+			} else {
+				method = arguments[0];
+				args = $.makeArray(arguments).slice(1);
+			}
+			console[method].apply(console, args);
+		},
+
+		generateRandomChar: function () {
+			var chars, index;
+			chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+			index = Math.floor(Math.random() * chars.length);
+			return chars.substr(index, 1);
+		},
+
+		generateRandomId: function () {
+			var string;
+			string = "chosen_" + this.generateRandomChar();
+			while ($("#" + string).length > 0) {
+				string += this.generateRandomChar();
+			}
+			return string;
+		},
+
+		/**
+		 * Simple template engine
+		 * Supports reading of object's nested.properties.including.0.numeric.1.keys.
+		 *
+		 * @param template String Template string. Placeholders must be wrapped to {curly_brackets}.
+		 * @param dataObj Object|Array
+		 * @param defaults Object|Array (optional)
+		 */
+		format: (function () {
+			function parsePath(path, data, defaults) {
+				var pathParts = path.split('.');
+				var result = data;
+				while (pathParts.length > 0 ) {
+					result = result[pathParts.shift()];
+					if (result === undefined) {
+						if (defaults !== undefined) {
+							result = parsePath(path, defaults);
+						} else {
+							result = '';
+						}
+						break;
+					}
+				}
+				return result;
+			}
+
+			return function(template, dataObj, defaults) {
+				if ( arguments.length === 1 ) {
+					return function() {
+						var args = $.makeArray(arguments);
+						args.unshift(template);
+						return utils.format.apply( this, args );
+					};
+				}
+				template = template.replace(/\{((\w+[:-]?\w*\.?)+)\}/g, function(substr, match) {
+					return parsePath(match, dataObj, defaults);
+				});
+
+				return template;
+			}
+		})(),
+
+		/**
+		 * Performs iteration through given dom nodes according to given config.
+		 * By default iterates only through visible and not disabled nodes, other nodes will be ignored.
+		 *
+		 * @param config Object
+		 *      forward - bool - whether to move from begin to end of list, or vice versa
+		 *      onListEnd - string - what to do if currently selected item is last on specified direction:
+		 *          'stop': do nothing, selection is not changed
+		 *          'clear': clear selection, nothing will be selected
+		 *          'rerun': select first item from opposite list end
+		 *      items - array - items through which we will iterate
+		 *      highlightedClass - string - name of css class, which will indicate selected item
+		 *      filter - function - allows to set additional rules to exclude some items from given set
+		 * @returns Object {
+		 *      movedFrom - previously selected item
+		 *      movedTo - currently selected item
+		 *  }
+		 */
+		moveListSelection: function(config) {
+			config.onListEnd || (config.onListEnd = 'stop');
+			if ($.inArray(config.onListEnd, ['rerun', 'clear', 'stop']) < 0) {
+				throw new Error(utils.format('Unknown option "{0}"', [config.onListEnd]));
+			}
+			var availableItemsSelector = ':visible:not(:disabled)'; // do not use just ':enabled', because by default 'disabled' property is undefined
+			var currentItem, nextItem, availableItems;
+			currentItem = config.items.filter('.' + config.highlightedClass);
+
+			var filter = function(index, item) {
+				item = $(item);
+				return item.is(availableItemsSelector) && (config.filter ? item.is(config.filter) : true);
+			};
+			availableItems = config.items.filter(filter);
+			if (currentItem.length) {
+				nextItem = currentItem[config.forward ? 'nextAll' : 'prevAll']().filter(availableItems).first();
+			} else {
+				// if nothing is selected yet - then on forward movement always first item will be selected, and on backward - depending on 'onListEnd' option
+				currentItem = availableItems.first();
+				nextItem = config.forward ? currentItem : [];
+			}
+
+			if (!nextItem.length) {
+				switch (config.onListEnd) {
+					case 'stop':
+						nextItem = availableItems[config.forward ? 'last' : 'first']();
+						break;
+					case 'rerun':
+						nextItem = availableItems[config.forward ? 'first' : 'last']();
+						break;
+					case 'clear':
+						currentItem.removeClass(config.highlightedClass);
+						break;
+					default:
+				}
+			}
+
+			if (nextItem.length) {
+				currentItem.removeClass(config.highlightedClass);
+				nextItem.addClass(config.highlightedClass);
+			}
+
+			return {
+				movedFrom: currentItem,
+				movedTo: nextItem
+			}
+		},
+
+		getAttribute: function(object, attributeName) {
+			var value;
+			if (typeof attributeName === 'function') {
+				value = attributeName(object);
+			} else {
+				if (attributeName.slice(0, 5) === 'data-') {
+					value = $.data(object, attributeName.slice(5));
+				} else {
+					value = object[attributeName];
+				}
+			}
+
+			return value;
+		},
+
+		isOptionDisabled: function(option) {
+			return option.disabled || (option.parentElement.tagName === 'OPTGROUP' && option.parentElement.disabled);
+		},
+
+		// several brutal hacks™ :
+
+		getTextWidth: function(text) {
+			var canvas = $('<span>').hide().text(text).appendTo(document.body);
+			var width = canvas.width();
+			canvas.remove();
+			return width;
+		},
+
+		htmlHelper: (function () {
+			var encoder = $('<div/>');
+			return {
+				encode: function(str) {
+					return encoder.text(str).html();
+				},
+				decode: function(str) {
+					return encoder.html(str).text();
+				}
+			}
+		})()
+	};
 
 })(jQuery);
