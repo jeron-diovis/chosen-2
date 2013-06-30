@@ -142,7 +142,7 @@
 
 		// for single-deselect ability, first option always must has an empty value (see 'chzn:single-select:set-selected')
 		if (!this.el.multiple && this.options.singleMode.allowDeselect) {
-			if (this.el.options[0].value.length > 0 || utils.isOptionDisabled(this.el.options[0])) {
+			if (!this.el.options.length || (this.el.options[0].value.length > 0 || utils.isOptionDisabled(this.el.options[0]))) {
 				this.$el.prepend($('<option>', {
 					'selected': false,
 					'text': this.options.ui.placeholder,
@@ -376,7 +376,14 @@
 			var newOption = $('<option>', config);
 			var optionNode = newOption.get(0);
 			this.$el.append(newOption);
-			this.ui.createSearchItem(optionNode).insertAfter(this.ui.searchList.children(this.ui.getSearchItemSelector()).last());
+			var newItem = this.ui.createSearchItem(optionNode);
+			var lastItem = this.ui.searchList.children(this.ui.getSearchItemSelector()).last();
+			if (lastItem.length > 0) {
+				newItem.insertAfter(lastItem);
+			} else {
+				newItem.prependTo(this.ui.searchList);
+			}
+
 			if (optionNode.selected) {
 				this.selectItem(optionNode.index);
 			}
