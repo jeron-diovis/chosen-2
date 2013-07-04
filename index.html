@@ -11,7 +11,7 @@
 	<hr>
 
 	<!--<form action="/">-->
-		<select multiple name="chosen[]" id="chosen" style="width:350px">
+		<select multiple name="chosen[]" id="chosen" style="width:350px" class="dropdown-filter">
 				<option value="">I'm a philologist</option>
 				<option value=1 data-main="JS">Javascript</option>
 				<option value="2" selected>Python</option>
@@ -34,6 +34,102 @@
 </body>
 
 <script type="text/javascript">
+
+	var searchInput = function() {
+		/* ch.ui.dropdownHeader.on('click', function() {
+		 ch.trigger('chzn:dropdown:open');
+		 });
+
+		 ch.bind('chzn:option-deselected', function(e, option) {
+		 if ($(option).hasClass('new')) {
+		 ch.removeItem(option.index)
+		 }
+		 });*/
+
+		var ch = this;
+		ch.unbind('chzn:search-list:set-selected');
+		//ch.unbind('chzn:choice-list:select');
+
+		var selectedChangedHandler = function(isSelected) {
+			return function(e, option) {
+				ch.ui.getSearchItemByOptionIndex(option.index).find(':checkbox').prop('checked', isSelected);
+			}
+		};
+
+		ch.bind({
+			'chzn:option-selected': selectedChangedHandler(true),
+			'chzn:option-deselected': selectedChangedHandler(false)
+		});
+
+		var handler = function(e) {
+			var li = $(e.currentTarget);
+			var chb = li.find(':input');
+
+			if (!$(e.target).is(':input, label')) {
+				e.stopImmediatePropagation();
+				chb.click();
+				return;
+			}
+
+			var meth = chb.get(0).checked ? 'selectItem' : 'deselectItem';
+			ch[meth](li.data('option-index'))
+		};
+
+		ch.ui.searchList.off('click.chzn:search:select-item');
+		ch.ui.searchList.on('click.chzn:custom', ch.ui.getSearchItemSelector(), handler);
+	};
+
+	var addWithInput = function() {
+		var chosen = this;
+
+		var getCreatorInput = function() {
+			return chosen.ui.itemCreator.find('.input-add-collection');
+		};
+
+		var getAddBtn = function() {
+			return chosen.ui.itemCreator.find('.add-new-collection-btn');
+		};
+
+		chosen.unbind('chzn:item-creator:clear');
+		chosen.bind('chzn:item-creator:render', function() {
+			getCreatorInput()
+				.keydown(function(e) {
+					if ((e.keyCode == 38 || e.keyCode == 40)) {
+						var isForward = e.keyCode == 40;
+						chosen.trigger('chzn:search-list:move-selection', [isForward, isForward ? 'rerun' : 'clear']);
+					}
+				})
+				.keyup(function(e) {
+					var input = this;
+					getAddBtn().prop('disabled', chosen.$el.children('option').filter(function() { return this.text === input.value; }).length > 0);
+				});
+		});
+		chosen.trigger('chzn:item-creator:render');
+
+		chosen.bind('chzn:item-creator:clear chzn:dropdown:close chzn:search-list:reset-filter', function() {
+			getCreatorInput().val('');
+		});
+
+		chosen.ui.itemCreator
+			.off('click')
+			.on('click', function() {
+				getCreatorInput().focus();
+			})
+			.on('chzn:list:on-get-selection', function() {
+				getCreatorInput().focus();
+			})
+			.on('chzn:list:on-loose-selection', function() {
+				chosen.ui.searchField.focus();
+			})
+			.on('click', '.add-new-collection-btn', function() {
+				var newCollectionName = getCreatorInput().val();
+				if (!newCollectionName.length) return false;
+				chosen.addItem({ 'text': newCollectionName });
+				getCreatorInput().val('');
+			})
+		;
+	};
+
 	$(document).ready(function() {
 		var config = {
 			search: {
@@ -66,8 +162,24 @@
 			},
 
 			ui: {
+				focusable: '.input-add-collection, .add-new-collection-btn, .create-item-msg',
 				createItems: {
-					message: 'Create <b>new</b> <div>item</div> "{keyword}"',
+					//message: 'Create <b>new</b> <div>item</div> "{keyword}"',
+					message: [
+						'<div class="chzn-add">',
+							'<span class="input-wrap">',
+							'<input',
+								' type="text"',
+								' class="input-add-collection"',
+								' placeholder="Add a new language"',
+								' name="input-add-collection"',
+								' value="{keyword}"',
+							'/>',
+							'<button class="add-new-collection-btn" type="button">Add</button>',
+							'</span>',
+						'</div>'
+					].join('')
+
 				},
 				multiMode: {
 					//choiceContainerSelector: '#choices',
@@ -90,63 +202,26 @@
 				search: {
 					//tagName: 'div',
 					excludeDisabled: false,
-					itemTemplate: 'Your <i>item</i> <div><b>{text}</b></div>{data.main}',
-					//itemTemplate: '<label><input type="checkbox">{0}</label>'
+					//itemTemplate: 'Your <i>item</i> <div><b>{text}</b></div>{data.main}',
+					//itemTemplate: '<label><input type="checkbox">{text}</label>',
+				//	itemTemplate: '<label style="display:block; width:100%"><input type="radio" name="cl">{text}</label>',
 					groupTemplate: '<i>{label}</i>',
 				}
 			},
 
-			/*beforeInit: function() {
-				 ch.ui.dropdownHeader.on('click', function() {
-				 	ch.trigger('chzn:dropdown:open');
-				 });
-
-				 ch.bind('chzn:option-deselected', function(e, option) {
-					if ($(option).hasClass('new')) {
-						ch.removeItem(option.index)
-					}
-				 });
-
-				var ch = this;
-				ch.unbind('chzn.search-list.set-selected');
-
-				var selectedChangedHandler = function(index, isSelected) {
-					ch.ui.getSearchItemByOptionIndex(index).find(':checkbox').prop('checked', isSelected);
-				};
-
-				ch.bind('chzn.data.option-deselected', function(e, option) {
-					selectedChangedHandler(option.index, false);
-				});
-				ch.bind('chzn.data.option-selected', function(e, option) {
-					selectedChangedHandler(option.index, true);
-				});
-
-				var handler = function(e) {
-					var li = $(e.currentTarget);
-					var chb = li.find(':checkbox');
-
-					if (!$(e.target).is(':input, label')) {
-						e.stopImmediatePropagation();
-						chb.click();
-						return;
-					}
-
-					var meth = chb.get(0).checked ? 'selectItem' : 'deselectItem';
-					ch[meth](li.data('option-index'))
-				};
-
-				ch.ui.searchList.off('click.chzn:search:select-item');
-				ch.ui.searchList.on('click.chzn.custom', ch.ui.getSearchItemSelector(), handler);
-			}*/
+			beforeInit: function() {
+				//searchInput.call(this);
+				addWithInput.call(this);
+			}
 		};
 
 		$('#chosen').chosen(config);
 
-		$('#chosen').clone().prop('multiple', false).appendTo(document.body).chosen($.extend(true, {}, config, {
+		/*$('#chosen').clone().prop('multiple', false).appendTo(document.body).chosen($.extend(true, {}, config, {
 			singleMode: {
 				allowDeselect: true
 			},
-		}));
+		}));*/
 	})
 </script>
 </html>
