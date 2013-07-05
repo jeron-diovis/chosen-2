@@ -115,7 +115,14 @@
 				 * Values must be a strings - event names (single event, or list, separated by comma).
 				 *
 				 * Also values can be an arrays, as it is showed below: first element describes event names, and other elements are key codes whose events must be prevented.
-				 * This syntax is done specially for keydown/keyup/keypress events. If none of keycodes specified, than event always will be prevented.
+				 * This syntax is done specially for keydown/keyup/keypress events. If none of key codes specified, than event always will be prevented.
+				 *
+				 * Default value below is mostly done to prevent widget's parent form from submitting.
+				 *
+				 * Note: this settings does not affect on widgets default components like search field or dropdown header anchor.
+				 * They have their own events handling and we do not want you to break it.
+				 *
+				 * TODO: add support for configuring ctrl/shift/alt buttons handling
 				 */
 				preventDefaults: {
 					':input': ['keydown', 13]
@@ -743,7 +750,7 @@
 		}
 
 		this.container.append(this.dropdown).insertAfter(this.$el);
-		this.preventDefaults(this.container);
+		this.preventDefaults(this.container, this.options.preventDefaults);
 
 		// -------------------------
 
@@ -847,6 +854,51 @@
 
 		isChoicesOutside: function() {
 			return this.options.multiMode.choiceContainerSelector !== undefined;
+		},
+
+		/**
+		 * Prevents default event handling inside given container node basing on given configuration
+		 * See 'ui.preventDefaults' option for details.
+		 *
+		 * @param container
+		 * @param config
+		 * @returns {*}
+		 */
+		preventDefaults: function(container, config) {
+			var chosenUI = this;
+
+			var createEventPreventor = function(condition) {
+				return function(e) {
+					var elem = $(e.target);
+					var isDefaultElement = elem.is(chosenUI.keydownTarget) || elem.is(chosenUI.dropdownHeader) || elem.is(chosenUI.searchField);
+					if (!isDefaultElement && condition(e)) {
+						e.preventDefault();
+					}
+				}
+			};
+			var condition;
+
+			for (var selector in config) if (config.hasOwnProperty(selector)) {
+				var event = this.options.preventDefaults[selector];
+				var keyCodes = [];
+
+				if (event.constructor === Array) {
+					keyCodes = event.splice(1);
+					event = event[0];
+				}
+
+				if (keyCodes.length > 0) {
+					condition = (function (keyCodes) {
+						return function(e) { return $.inArray(e.keyCode, keyCodes) >= 0; }
+					})(keyCodes);
+				} else {
+					condition = function() { return true; }
+				}
+
+				container.on(event, selector, createEventPreventor(condition));
+			}
+
+			return this;
 		},
 
 		// create base widget nodes :
@@ -958,58 +1010,7 @@
 				}
 			});
 
-			// -------------------------
-
-			/*if (this.el.form && this.options.preventSubmit.length > 0) {
-				container.on('keydown', this.options.preventSubmit, function(e) {
-					var element = $(e.target);
-					if (!(element.is(chosenUI.keydownTarget) || element.is(chosenUI.dropdownHeader) || element.is(chosenUI.searchField))) {
-						if (e.keyCode === 13) {
-							e.preventDefault();
-						}
-					}
-				})
-			}*/
-
-
 			return container;
-		},
-
-		preventDefaults: function(container) {
-			var chosenUI = this;
-
-			var createEventPreventor = function(condition) {
-				return function(e) {
-					var elem = $(e.target);
-					var isDefaultElement = elem.is(chosenUI.keydownTarget) || elem.is(chosenUI.dropdownHeader) || elem.is(chosenUI.searchField);
-					if (!isDefaultElement && condition(e)) {
-						e.preventDefault();
-					}
-				}
-			};
-			var condition;
-
-			for (var selector in this.options.preventDefaults) if (this.options.preventDefaults.hasOwnProperty(selector)) {
-				var event = this.options.preventDefaults[selector];
-				var keyCodes = [];
-
-				if (event.constructor === Array) {
-					keyCodes = event.splice(1);
-					event = event[0];
-				}
-
-				if (keyCodes.length > 0) {
-					condition = (function (keyCodes) {
-						return function(e) { return $.inArray(e.keyCode, keyCodes) >= 0; }
-					})(keyCodes);
-				} else {
-					condition = function() { return true; }
-				}
-
-				container.on(event, selector, createEventPreventor(condition));
-			}
-
-			return this;
 		},
 
 		createDropdown: function() {
