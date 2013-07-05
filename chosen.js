@@ -100,7 +100,14 @@
 					collapseOnInit: false
 				},
 
-				focusable: '', // specify selectors for elements, click on which will not set focus to search field. Can be useful, if you use own inputs inside widget
+				/* Specify selectors for elements inside widget, click on which will not set focus to search field.
+					Can be useful, if you use own inputs inside widget */
+				focusable: '',
+
+				/* Specify selectors for elements, click on which will be always considered as inside widget, no matter where they really are.
+					So, click on such elements will not trigger a widget deactivation event.
+					Especially useful, if you show some pop-up windows when dropdown is opened, and want it not to be closed when user does clicks inside that popup */
+				forceInside: '',
 
 				search: {
 					tagName: 'ul',
@@ -268,9 +275,8 @@
 				}
 			}
 
-			this.bind('chzn:option-selected.sys chzn:option-deselected.sys', $.proxy(function() {
-				this.trigger('chzn:search-list:filter');
-			}, this));
+			// re-run filtering, to decide whether selected or deselected item should be displayed according to current options
+			this.bind('chzn:option-selected.sys chzn:option-deselected.sys', $.proxy(function() { this.trigger('chzn:search-list:filter'); }, this));
 
 			if (this.options.ui.openAfterInit) {
 				this.trigger('chzn:dropdown:open');
@@ -853,6 +859,8 @@
 			var chosenUI = this;
 
 			function isInsideContainer(event, isActivating) {
+				if ($(event.target).closest(chosenUI.options.forceInside).length > 0) return true;
+
 				// deny to activate container on _direct_ click on choice list - because, in common case, choice list is independent node, not inside container
 				if (!chosenUI.isAutosuggest() && chosenUI.el.multiple && event.target === chosenUI.choiceList.get(0)) return false;
 
@@ -1738,7 +1746,7 @@
 				node.data(dataKey, new Chosen(this, options));
 			}
 		});
-	}
+	};
 
 	// -----------------------------------------------
 
