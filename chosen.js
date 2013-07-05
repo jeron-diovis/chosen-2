@@ -109,6 +109,18 @@
 					Especially useful, if you show some pop-up windows when dropdown is opened, and want it not to be closed when user does clicks inside that popup */
 				forceInside: '',
 
+				/*
+				 * Map for events to be prevented from their default handling.
+				 * Keys must be any valid JQuery selectors.
+				 * Values must be a strings - event names (single event, or list, separated by comma).
+				 *
+				 * Also values can be an arrays, as it is showed below: first element describes event names, and other elements are key codes whose events must be prevented.
+				 * This syntax is done specially for keydown/keyup/keypress events. If none of keycodes specified, than event always will be prevented.
+				 */
+				preventDefaults: {
+					':input': ['keydown', 13]
+				},
+
 				search: {
 					tagName: 'ul',
 					itemTemplate: '{text}',
@@ -731,6 +743,7 @@
 		}
 
 		this.container.append(this.dropdown).insertAfter(this.$el);
+		this.preventDefaults(this.container);
 
 		// -------------------------
 
@@ -797,9 +810,9 @@
 		getSearchItemsFromGroup: function(optgroup) {
 			optgroup = $(optgroup);
 			var indexes;
-			if (optgroup.is('optgroup')) {
+			if (optgroup.is('optgroup')) { // real 'optgroup' tag
 				indexes = $.map(optgroup.children('option'), function(option) { return option.index; })
-			} else {
+			} else { // optgroup imitation from search list
 				indexes = optgroup.data('children-indexes');
 			}
 			return this.getSearchItemByOptionIndex(indexes);
@@ -945,7 +958,58 @@
 				}
 			});
 
+			// -------------------------
+
+			/*if (this.el.form && this.options.preventSubmit.length > 0) {
+				container.on('keydown', this.options.preventSubmit, function(e) {
+					var element = $(e.target);
+					if (!(element.is(chosenUI.keydownTarget) || element.is(chosenUI.dropdownHeader) || element.is(chosenUI.searchField))) {
+						if (e.keyCode === 13) {
+							e.preventDefault();
+						}
+					}
+				})
+			}*/
+
+
 			return container;
+		},
+
+		preventDefaults: function(container) {
+			var chosenUI = this;
+
+			var createEventPreventor = function(condition) {
+				return function(e) {
+					var elem = $(e.target);
+					var isDefaultElement = elem.is(chosenUI.keydownTarget) || elem.is(chosenUI.dropdownHeader) || elem.is(chosenUI.searchField);
+					if (!isDefaultElement && condition(e)) {
+						e.preventDefault();
+					}
+				}
+			};
+			var condition;
+
+			for (var selector in this.options.preventDefaults) if (this.options.preventDefaults.hasOwnProperty(selector)) {
+				var event = this.options.preventDefaults[selector];
+				var keyCodes = [];
+
+				if (event.constructor === Array) {
+					keyCodes = event.splice(1);
+					event = event[0];
+				}
+
+				if (keyCodes.length > 0) {
+					condition = (function (keyCodes) {
+						return function(e) { return $.inArray(e.keyCode, keyCodes) >= 0; }
+					})(keyCodes);
+				} else {
+					condition = function() { return true; }
+				}
+
+				container.on(event, selector, createEventPreventor(condition));
+			}
+
+			return this;
 		},
 
 		createDropdown: function() {
