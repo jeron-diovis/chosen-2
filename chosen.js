@@ -730,12 +730,6 @@
 				this.choiceList.append(searchFieldWrapper);
 			}
 
-			this.bind('chzn:search-list:filtered.sys', function() {
-				if (!this.ui.dropdown.is(':visible')) {
-					this.trigger('chzn:dropdown:open');
-				}
-			});
-
 			if (this.options.multiMode.openAutosuggestOnClick) {
 				var opener = $.proxy(this.trigger, this, 'chzn:dropdown:open');
 				this.dropdownHeader.click(opener);
@@ -1051,7 +1045,7 @@
 						this.ui.searchField && this.ui.searchField.val('');
 						this.trigger('chzn:search-list:reset-filter');
 					}
-					this.ui.itemCreator && this.ui.itemCreator.removeClass('highlighted');
+					this.ui.itemCreator && this.ui.itemCreator.removeClass('highlighted'); // TODO: css dependency
 
 					visibilityToggler('removeClass');
 					dropdown.hide();
@@ -1275,7 +1269,7 @@
 				'chzn:search-list:set-selected': function(e, index, isSelected) {
 					var items = getSearchItems();
 					var selectedItem = this.ui.getSearchItemByOptionIndex(index);
-					selectedItem[isSelected ? 'addClass' : 'removeClass'](classes.selected);
+					selectedItem.toggleClass(classes.selected, isSelected);
 					if (this.el.multiple) {
 						if (isSelected) {
 							this.trigger('chzn:search-list:move-selection', [true, 'rerun']);
@@ -1286,7 +1280,7 @@
 					var group = this.ui.getSearchItemGroupByOptionIndex(index);
 					var groupOptions = this.ui.getOptionForSearchItem(this.ui.getSearchItemsFromGroup(group));
 					var isAllSelected = groupOptions.length === $(groupOptions).filter(':selected').length;
-					group[isAllSelected ? 'addClass' : 'removeClass'](classes.groupCompleted);
+					group.toggleClass(classes.groupCompleted, isAllSelected);
 				},
 
 				'chzn:search-list:toggle-group': function(e, index, isCollapsed) {
@@ -1313,7 +1307,7 @@
 					items.removeClass(classes.noMatch);
 					this.ui.searchList.children(this.ui.getSearchItemGroupSelector()).removeClass(classes.groupCompleted);
 					noResultsMessage.hide().empty();
-					this.ui.itemCreator && this.trigger('chzn:item-creator:dispose');
+					this.ui.itemCreator && this.trigger('chzn:item-creator:clear');
 				},
 
 				'chzn:search-list:filter': function(e, keyword) {
@@ -1560,7 +1554,7 @@
 					$(document).on(blurEventName, function(e) {
 						var self = $(e.target);
 						// click not on any choice
-						var isChoice = self.parentsUntil(chosenUI.getChoiceSelector()).add(self.parent()).andSelf().is(choiceSelector);
+						var isChoice = self.closest(choiceSelector).length > 0;
 						if (!isChoice) {
 							list.children(choiceSelector).removeClass(classes.choiceSelected);
 							$(document).off(blurEventName);
