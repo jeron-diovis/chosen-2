@@ -134,7 +134,7 @@
 }
 
 /* @group Multi Chosen */
-.chzn-container-multi.autosuggest .chzn-autosuggest {
+.chzn-container.autosuggest .chzn-autosuggest {
     background-image: -webkit-gradient(linear, 0 0, 0 100%, color-stop(1%, #eeeeee), color-stop(15%, #ffffff));
     background-image: -webkit-linear-gradient(top, #eeeeee 1%, #ffffff 15%);
     background-image: -moz-linear-gradient(top, #eeeeee 1%, #ffffff 15%);
@@ -144,7 +144,7 @@
     padding: 5px 0;
 }
 
-.chzn-container-multi.autosuggest .autosuggest-placeholder {
+.chzn-container.autosuggest .autosuggest-placeholder {
     text-decoration: none;
     color: #999;
     cursor:text;
@@ -181,8 +181,7 @@
   overflow: hidden;
   min-width:150px;
 }
-/*.chzn-container-multi*/ /*.chzn-choices*/ .autosuggest .search-field input {
-  /*color: #666;*/
+.chzn-container.autosuggest .search-field input {
   background: transparent !important;
   border: 0 !important;
   font-family: sans-serif;
@@ -196,10 +195,11 @@
   -moz-box-shadow   : none;
   box-shadow        : none;
 }
-/*.chzn-container-multi*/ /*.chzn-choices*/ .autosuggest .search-field .default {
+.chzn-container.autosuggest .search-field .default {
   color: #999;
 }
-/*.chzn-container-multi*/ .chzn-choices .search-choice {
+
+.chzn-choices .search-choice {
   -webkit-border-radius: 3px;
   -moz-border-radius   : 3px;
   border-radius        : 3px;
@@ -224,7 +224,7 @@
   position: relative;
   cursor: default;
 }
-/*.chzn-container-multi*/ .chzn-choices .search-choice.disabled {
+.chzn-choices .search-choice.disabled {
   background-color: #e4e4e4;
   filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#f4f4f4', endColorstr='#eeeeee', GradientType=0 );
   background-image: -webkit-gradient(linear, 0% 0%, 0% 100%, color-stop(20%, #f4f4f4), color-stop(50%, #f0f0f0), color-stop(52%, #e8e8e8), color-stop(100%, #eeeeee));
@@ -237,10 +237,10 @@
   border: 1px solid #cccccc;
   padding-right: 5px;
 }
-/*.chzn-container-multi*/ .chzn-choices .search-choice.selected {
+.chzn-choices .search-choice.selected {
   background: #d4d4d4;
 }
-/*.chzn-container-multi*/ .chzn-choices .search-choice .search-choice-close {
+.chzn-choices .search-choice .search-choice-close {
   display: block;
   position: absolute;
   right: 3px;
@@ -268,7 +268,7 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
-.chzn-container-multi.autosuggest .chzn-results {
+.chzn-container.autosuggest .chzn-results {
   margin: 1px 0 0;
   padding: 0;
 }
