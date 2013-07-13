@@ -1096,6 +1096,11 @@
 				prevValue = this.value;
 			});
 
+			searchField.focus(function() {
+				var input = this;
+				setTimeout(function() { input.selectionStart = input.value.length; }, 1); // does not work without timeout :(
+			});
+
 			return searchField;
 		},
 
@@ -1361,7 +1366,7 @@
 
 					this.trigger('chzn:search-list:filtered', [keyword, matchingItems.length]);
 					searchItems.filter('.' + classes.highlighted).not(':visible').add(this.ui.itemCreator).removeClass(classes.highlighted);
-					if (this.options.ui.search.forceHighlight && !searchItems.filter('.' + classes.highlighted).length) {
+					if (this.options.ui.search.forceHighlight && !searchItems.filter('.' + classes.highlighted).length && matchingItems.length > 0) {
 						this.trigger('chzn:search-list:move-selection', [true]);
 					}
 				}
