@@ -81,11 +81,14 @@
 
 				placeholder: 'Select an option',
 
+				autocompleteMode: {
+					enabled: false,
+					openOnActivation: true // whether to show dropdown when container gets activated
+				},
+
 				multiMode: {
 					choiceTemplate: '{text}',
 					choiceContainerSelector: undefined, // allows to place choices in any element you wish
-					useAutosuggestLayout: true,
-					openAutosuggestOnClick: true,
 					switchToChoicesOnBackspace: true, // whether to allow to switch focus to last choice by pressing backspace when container is empty
 					blockDropdownOnLimitReached: false // denies to open dropdown when max allowed item count is selected
 				},
@@ -101,12 +104,12 @@
 				},
 
 				/* Specify selectors for elements inside widget, click on which will not set focus to search field.
-					Can be useful, if you use own inputs inside widget */
+				 Can be useful, if you use own inputs inside widget */
 				focusable: '',
 
 				/* Specify selectors for elements, click on which will be always considered as inside widget, no matter where they really are.
-					So, click on such elements will not trigger a widget deactivation event.
-					Especially useful, if you show some pop-up windows when dropdown is opened, and want it not to be closed when user does clicks inside that popup */
+				 So, click on such elements will not trigger a widget deactivation event.
+				 Especially useful, if you show some pop-up windows when dropdown is opened, and want it not to be closed when user does clicks inside that popup */
 				forceInside: '',
 
 				/*
@@ -133,7 +136,8 @@
 					itemTemplate: '{text}',
 					groupTemplate: '<i>{label}</i>',
 					placeholder: 'Search for something',
-					noResultsText: 'No results match "{keyword}"',
+					noResultsMessage: 'No results match "{keyword}"',
+					showNoResultsMessage: true,
 					forceHighlight: true, // if true, then when selection is empty, first matching result will be highlighted
 					excludeDisabled: true, // if true, search items for disabled options will not be created; else they will be inactive
 					ignoreSelected: true, // whether to consider selected items as not matching on search
@@ -168,15 +172,13 @@
 
 		// -------------------
 
-		// for single-deselect ability, first option always must has an empty value (see 'chzn:single-select:set-selected')
-		if (!this.el.multiple && this.options.singleMode.allowDeselect) {
-			if (!this.el.options.length || (this.el.options[0].value.length > 0 || utils.isOptionDisabled(this.el.options[0]))) {
-				this.$el.prepend($('<option>', {
-					'selected': false,
-					'text': this.options.ui.placeholder,
-					'value': '' // not null! if null, value will be set to text;
-				}));
-			}
+		if (this.isHiddenOptionRequired()) {
+			this.$el.prepend($('<option>', {
+				'class': 'chzn-system-hidden-option',
+				'selected': false,
+				'text': this.options.ui.autocompleteMode.enabled ? '' : this.options.ui.placeholder,
+				'value': '' // not null! if null, value will be set to text;
+			}));
 		}
 
 		// -------------------
@@ -191,6 +193,13 @@
 		// -------------------
 
 		this.log('Initializing...');
+
+		this.options.beforeInit.call(this);
+
+		// TODO: get rid of this
+		// re-run filtering, to decide whether selected or deselected item should be displayed according to current options
+		this.bind('chzn:option-selected.sys chzn:option-deselected.sys', $.proxy(function() { this.trigger('chzn:search-list:filter'); }, this));
+
 		this.init();
 
 		this.log('Ready');
@@ -239,6 +248,7 @@
 
 		unbind: function() {
 			$.fn.unbind.apply(this.$el, arguments);
+			this.log('Unbind: ', arguments);
 			return this;
 		},
 
@@ -265,8 +275,6 @@
 		},
 
 		init: function() {
-			this.options.beforeInit.call(this);
-
 			var maxSelected = this.options.multiMode.maxSelected;
 			if (this.el.multiple) {
 				var selectedOptions = $(this.el.options).filter(':selected');
@@ -277,7 +285,7 @@
 			}
 
 			// TODO: need optimization, some 'batch select'. Too much events on start
-			$.each(this.el.options, $.proxy(function(index, option) {
+			$.each(this.getActiveOptions(), $.proxy(function(index, option) {
 				if (option.selected) {
 					this.selectItem(option.index);
 				}
@@ -287,32 +295,32 @@
 			this.trigger('chzn:search-list:clear-highlight.sys');
 
 			if (this.options.ui.groups.allowCollapse && this.options.ui.groups.collapseOnInit) {
-				var optgorups = this.$el.children('optgroup');
-				var indexes = $.map(optgorups, $.proxy($.fn.index, optgorups));
+				var optgroups = this.$el.find('optgroup');
+				var indexes = $.map(optgroups, $.proxy($.fn.index, optgroups));
 				if (indexes.length) {
 					this.trigger('chzn:search-list:toggle-group', [indexes, true]);
 				}
 			}
-
-			// re-run filtering, to decide whether selected or deselected item should be displayed according to current options
-			this.bind('chzn:option-selected.sys chzn:option-deselected.sys', $.proxy(function() { this.trigger('chzn:search-list:filter'); }, this));
 
 			if (this.options.ui.openAfterInit) {
 				this.trigger('chzn:dropdown:open');
 			}
 		},
 
-		reset: function(hard) {
+		reset: function(options) {
+			options || (options = {});
+
 			this.resetNewItems();
 
-			var options = $(this.el.options);
+			var optionNodes = $(this.el.options);
 			for (var propName in this.initialState) if (this.initialState.hasOwnProperty(propName)) {
-				var propValues = this.initialState[propName];
-				options.prop(propName, function(index) { return propValues[index]; });
+				optionNodes.prop(propName, (function (propValues) {
+					return function (index) { return propValues[index]; }
+				})(this.initialState[propName]));
 			}
 
-			if (hard) {
-				options.prop({
+			if (options.hard) {
+				optionNodes.prop({
 					selected: false,
 					disabled: false
 				});
@@ -323,13 +331,31 @@
 			this.trigger('chzn:search-list:compose-items');
 			this.init();
 
-			this.trigger('chzn:resetted', [hard]);
+			if (!options.silent) {
+				this.trigger('chzn:reseted', [options]);
+			}
 
 			return this;
 		},
 
 		isSelectionLimitReached: function() {
 			return this.el.multiple && $(this.el.options).filter(':selected').length >= this.options.multiMode.maxSelected;
+		},
+
+		isHiddenOptionRequired: function() {
+			return !this.el.multiple && (this.options.singleMode.allowDeselect || this.options.ui.autocompleteMode.enabled);
+		},
+
+		getActiveOptions: function() {
+			var options = $(this.el.options);
+			if (this.isHiddenOptionRequired()) {
+				options = options.slice(1);
+			}
+			return options;
+		},
+
+		isNewOption: function(optionConfig) {
+			return (optionConfig.text !== undefined) && !this.getActiveOptions().is(utils.textCompare(optionConfig.text));
 		},
 
 		selectItem: function(index) {
@@ -340,19 +366,7 @@
 
 			var option = this.el.options[index];
 			option.selected = true;
-			this.trigger('chzn:search-list:set-selected', [option.index, true]);
-
-			if (!this.el.multiple) {
-				this.trigger('chzn:single-select:set-selected', option);
-			} else {
-				this.trigger('chzn:choice-list:select', option);
-			}
-
 			this.trigger('chzn:option-selected', option);
-
-			if (this.options.ui.closeAfterChange) {
-				this.trigger('chzn:dropdown:close');
-			}
 
 			return this;
 		},
@@ -360,14 +374,6 @@
 		deselectItem: function(index) {
 			var option = this.el.options[index];
 			option.selected = false;
-			this.trigger('chzn:search-list:set-selected', [option.index, false]);
-
-			if (!this.el.multiple) {
-				this.trigger('chzn:single-select:deselect');
-			} else {
-				this.trigger('chzn:choice-list:deselect', option);
-			}
-
 			this.trigger('chzn:option-deselected', option);
 
 			return this;
@@ -388,34 +394,35 @@
 			if (!config.text) {
 				throw new Error('Option label must be specified');
 			}
-			for (var i = 0, len = this.el.options.length; i < len; i++) {
-				if (this.el.options[i].text === config.text) {
-					throw new Error(utils.format('Options with label "{0}" already exists', [config.text]));
-				}
+			if (!this.isNewOption(config)) {
+				throw new Error(utils.format('Option creation is denied. Perhaps, options with label "{0}" already exists', [config.text]));
 			}
 
 			config.value || (config.value = config.text); // just to explicit set tag attribute; internally, browser already sets value for you
 
-			if (!options.save) {
-				config.class ? (config.class += ' new') : (config.class = 'new');
-			}
-
 			var newOption = $('<option>', config);
 			var optionNode = newOption.get(0);
+
+			if (options.save) {
+				this.backup([optionNode], true);
+			} else {
+				newOption.addClass('new');
+			}
+
 			this.$el.append(newOption);
 			var newItem = this.ui.createSearchItem(optionNode);
-			var lastItem = this.ui.searchList.children(this.ui.getSearchItemSelector()).last();
+			var lastItem = this.ui.searchList.find(this.ui.getSearchItemSelector()).last();
 			if (lastItem.length > 0) {
 				newItem.insertAfter(lastItem);
 			} else {
 				newItem.prependTo(this.ui.searchList);
 			}
 
+			this.trigger('chzn:option-created', [optionNode]);
+
 			if (optionNode.selected) {
 				this.selectItem(optionNode.index);
 			}
-
-			this.trigger('chzn:option-created', [optionNode]);
 
 			return this;
 		},
@@ -432,7 +439,7 @@
 				}).end()
 				.remove();
 
-			for (var propName in this.initialState) {
+			for (var propName in this.initialState) if (this.initialState.hasOwnProperty(propName)) {
 				this.initialState[propName].splice(index, 1);
 			}
 
@@ -440,7 +447,9 @@
 
 			option = $(option);
 			var parent = option.parent();
+
 			option.remove();
+
 			if (parent.is('optgroup')) {
 				var uiOptgroup = this.ui.getSearchItemGroupByOptionIndex(index);
 				var dataKey = 'children-indexes';
@@ -514,7 +523,7 @@
 						success: function(response) {
 							var mapper = function(item) {
 								var itemConfig = {};
-								for (var attributeName in searchOptions.ajax.mapping) {
+								for (var attributeName in searchOptions.ajax.mapping) if (searchOptions.ajax.mapping.hasOwnProperty(attributeName)) {
 									var remoteAttributeValue, remoteAttributeName = searchOptions.ajax.mapping[attributeName];
 									if (typeof remoteAttributeName === 'function') {
 										remoteAttributeValue = remoteAttributeName(item);
@@ -546,7 +555,7 @@
 				var flags = 'i';
 
 				var regex = new RegExp(pattern, flags);
-				return $.map(this.el.options, function(option) {
+				return $.map(this.getActiveOptions(), function(option) {
 					var isMatch = false;
 
 					if (searchOptions.bySubstr || !searchOptions.splitWords) {
@@ -559,14 +568,14 @@
 						}
 					}
 
-					if (isMatch) return option.index;
+					return isMatch ? option.index : null;
 				});
 			}
 		})(),
 
 		/**
 		 * Serializes selected items, allowing to customize serializable attributes
-		 * Result format depends on {@link wwwFormUrlEncoded} param.
+		 * Result format depends on {@link boolean wwwFormUrlEncoded} param.
 		 *
 		 * @param attributes string|array|object List of attributes to be serialized <br>
 		 *      If string, must be a name of option property, or 'data-'-prefixed data property.
@@ -684,19 +693,19 @@
 
 		var searchFieldWrapper, choiceListContainer;
 		var isSearchEnabled = this.chosen.options.search.enabled;
-		var isAutosuggest = this.isAutosuggest();
+		var isAutocomplete = this.options.autocompleteMode.enabled;
 
-		if (!isAutosuggest) {
+		if (!isAutocomplete) {
 			this.dropdownHeader = this.createSingleSelectedItem();
 			this.dropdownHeader.prependTo(this.container);
 			choiceListContainer = this.container;
 			if (isSearchEnabled) searchFieldWrapper = $('<div>', { 'class': 'chzn-search' }).prependTo(this.dropdown);
 		} else {
-			choiceListContainer = $('<div>', { 'class': 'chzn-autosuggest' });
+			choiceListContainer = $('<div>', { 'class': 'chzn-autocomplete' });
 			searchFieldWrapper = $(this.isChoicesOutside() ? '<div>' : this.getUiItemTag(), { 'class': 'search-field' });
 			if (!isSearchEnabled) {
 				this.dropdownHeader = $('<a>', {
-					'class': 'autosuggest-placeholder',
+					'class': 'autocomplete-placeholder',
 					'href': 'javascript:void(0)'
 				})
 					.text(this.options.placeholder)
@@ -722,24 +731,12 @@
 			this.keydownTarget = this.dropdownHeader;
 		}
 
-		if (isAutosuggest) {
+		if (isAutocomplete) {
 			if (isSearchEnabled) {
 				this.dropdownHeader = this.searchField;
 			}
 			if (this.el.multiple && !this.isChoicesOutside()) {
 				this.choiceList.append(searchFieldWrapper);
-			}
-
-			if (this.options.multiMode.openAutosuggestOnClick) {
-				var opener = $.proxy(this.trigger, this, 'chzn:dropdown:open');
-				this.dropdownHeader.click(opener);
-				if (!this.isChoicesOutside()) {
-					this.choiceList.on('click', function(e) {
-						if (e.target === e.currentTarget) {
-							opener();
-						}
-					});
-				}
 			}
 		}
 
@@ -779,7 +776,7 @@
 
 		getUiElementByOptionIndex: function(index, container, itemSelector) {
 			var isArray = $.isArray(index);
-			var items = container.children(itemSelector);
+			var items = container.find(itemSelector);
 			return items.filter(function() {
 				var dataIndex = $(this).data('option-index');
 				return isArray ? ($.inArray(dataIndex, index) >= 0) : (dataIndex === index);
@@ -842,10 +839,6 @@
 			return content;
 		},
 
-		isAutosuggest: function() {
-			return this.el.multiple && this.options.multiMode.useAutosuggestLayout;
-		},
-
 		isChoicesOutside: function() {
 			return this.options.multiMode.choiceContainerSelector !== undefined;
 		},
@@ -903,13 +896,13 @@
 			var classes = [
 				'chzn-container'
 			];
-			if (this.isAutosuggest()) {
-				classes.push('autosuggest');
-			} else {
-				classes.push('chzn-container-single');
+			if (this.options.autocompleteMode.enabled) {
+				classes.push('autocomplete');
 			}
 			if (this.el.multiple) {
 				classes.push('chzn-container-multi');
+			} else {
+				classes.push('chzn-container-single');
 			}
 			if (this.options.inheritCssClasses) {
 				classes.push(this.el.className);
@@ -921,7 +914,7 @@
 				if ($(event.target).closest(chosenUI.options.forceInside).length > 0) return true;
 
 				// deny to activate container on _direct_ click on choice list - because, in common case, choice list is independent node, not inside container
-				if (!chosenUI.isAutosuggest() && chosenUI.el.multiple && event.target === chosenUI.choiceList.get(0)) return false;
+				if (!chosenUI.options.autocompleteMode.enabled && chosenUI.el.multiple && event.target === chosenUI.choiceList.get(0)) return false;
 
 				// TODO: refactor this, use 'closest'
 				var node = $(event.target);
@@ -936,9 +929,9 @@
 				 * Due to this, we can remove choices wherever they are (even outside of container) without container deactivation.
 				 * And in the same time, we prevent to activate container by clicking 'remove choice' button, even if it is inside container
 				 */
-				if (!isActivating) {
+				if (!isActivating) { // TODO: deprecated; remove
 					isInside = isInside || (chosenUI.el.multiple && parents.is('.search-choice-close'));
-					if (chosenUI.isAutosuggest()) {
+					if (chosenUI.el.multiple && chosenUI.options.autocompleteMode.enabled) {
 						isInside = isInside || parents.is(chosenUI.getChoiceSelector());
 					}
 				}
@@ -990,7 +983,7 @@
 								}
 							}
 						});
-					}, 10);
+					}, 4);
 				},
 
 				'chzn:container:deactivate': function () {
@@ -1020,80 +1013,138 @@
 
 			var chosenUI = this;
 
-			// TODO: deprecated; refactor
-			var visibilityToggler = $.proxy(function(cssClassMethod) {
-				if (!chosenUI.isAutosuggest()) {
-					chosenUI.dropdownHeader && chosenUI.dropdownHeader[cssClassMethod](classes.selectedItem);
-				} else {
-
+			var toggleDropdown = function(state) {
+				if (!chosenUI.options.autocompleteMode.enabled) {
+					chosenUI.dropdownHeader.toggleClass(classes.selectedItem, state);
 				}
-			}, dropdown);
+				dropdown[state ? 'show' : 'hide']();
+			};
 
-			this.bind({
-				'chzn:dropdown:open': function() {
-					if (this.options.ui.multiMode.blockDropdownOnLimitReached && this.isSelectionLimitReached()) {
-						this.trigger('chzn:max-selected.dropdown-open');
+			var dropdownMethods = {
+				'open': function() {
+					if (chosenUI.options.multiMode.blockDropdownOnLimitReached && chosenUI.chosen.isSelectionLimitReached()) {
+						chosenUI.trigger('chzn:max-selected.dropdown-open');
 						return;
 					}
-					visibilityToggler('addClass');
-					dropdown.show();
+					toggleDropdown(true);
 				},
 
-				'chzn:dropdown:close': function() {
+				'close': function() {
 					// TODO: behavior subscription
-					if (this.options.ui.resetAfterClose) {
-						this.ui.searchField && this.ui.searchField.val('');
-						this.trigger('chzn:search-list:reset-filter');
+					if (chosenUI.options.resetAfterClose) {
+						chosenUI.searchField && chosenUI.searchField.val('');
+						chosenUI.trigger('chzn:search-list:reset-filter');
 					}
-					this.ui.itemCreator && this.ui.itemCreator.removeClass('highlighted'); // TODO: css dependency
+					chosenUI.itemCreator && chosenUI.itemCreator.removeClass('highlighted'); // TODO: css dependency
 
-					visibilityToggler('removeClass');
-					dropdown.hide();
+					toggleDropdown(false);
 				},
 
+				'toggle': function(state) {
+					var action = (typeof state === "boolean" ? state : dropdown.is(':hidden')) ? 'open' : 'close';
+					dropdownMethods[action]();
+				}
+			};
+
+			chosenUI.bind({
+				'chzn:dropdown:open': dropdownMethods.open,
+				'chzn:dropdown:close': dropdownMethods.close,
 				'chzn:dropdown:toggle': function(e, state) {
-					var eventName = (typeof state === "boolean" ? state : dropdown.is(':hidden')) ? 'open' : 'close';
-					this.trigger('chzn:dropdown:' + eventName);
+					dropdownMethods.toggle(state);
 				}
 			});
+
+			// Trigger events instead of calling dropdown methods, to keep valid events behavior for custom listeners
+			if (chosenUI.options.closeAfterChange) {
+				chosenUI.bind({ 'chzn:option-selected.dropdown': $.proxy(this.trigger, this, 'chzn:dropdown:close') });
+			}
+
+			if (chosenUI.options.autocompleteMode.enabled && chosenUI.options.autocompleteMode.openOnActivation) {
+				chosenUI.bind({ 'chzn:container:activate.dropdown': $.proxy(this.trigger, this, 'chzn:dropdown:open') });
+			}
 
 			return dropdown;
 		},
 
 		createSearchField: function() {
+			var defaultCssClassName = 'default';
+
 			var searchField = $('<input>', {
 				'type': 'text',
 				'placeholder': this.options.search.placeholder,
-				'class': 'default'
+				'class': defaultCssClassName
 			});
 
 			searchField.prop('autocomplete', 'off');
 
 			var chosenUI = this;
 			var handler, prevValue = '', isFiltered = false;
-			searchField.keyup(function() {
-				// emulate 'onChange' without loosing focus
-				if (this.value != prevValue) {
-					$(this).toggleClass('default', this.value.length === 0);
+			var isAutocomplete = !chosenUI.el.multiple && chosenUI.options.autocompleteMode.enabled;
 
-					if (this.value.length < chosenUI.chosen.options.search.minLength) {
+			var toggleCssClass = function() {
+				searchField.toggleClass(defaultCssClassName, searchField.val().length === 0);
+			};
+
+			var onChangeHandler = function(e, setValue) {
+				if (setValue !== undefined) {
+					this.value = setValue;
+				}
+
+				var keyword = this.value;
+
+				// emulate 'onChange' without loosing focus
+				if (keyword != prevValue) {
+					toggleCssClass();
+
+					if (keyword.length < chosenUI.chosen.options.search.minLength) {
 						if (isFiltered) {
 							chosenUI.trigger('chzn:search-list:reset-filter', true);
 							isFiltered = false;
 						}
 					} else {
 						clearTimeout(handler);
-						handler = setTimeout($.proxy(chosenUI.trigger, chosenUI, 'chzn:search-list:filter', this.value), chosenUI.chosen.options.search.delay);
+						handler = setTimeout(
+							$.proxy(chosenUI.trigger, chosenUI, 'chzn:search-list:filter', keyword),
+							chosenUI.chosen.options.search.delay
+						);
 						isFiltered = true;
 					}
-				}
-				prevValue = this.value;
-			});
 
-			searchField.focus(function() {
-				var input = this;
-				setTimeout(function() { input.selectionStart = input.value.length; }, 1); // does not work without timeout :(
-			});
+					if (isAutocomplete) {
+						var createChangeStateIterator = function(changeStateMethod) {
+							return function(arrayIndex, option) {
+								chosenUI.chosen[changeStateMethod](option.index);
+							}
+						};
+						var customOption = $(chosenUI.el.options[0]);
+
+						var allOptions = chosenUI.chosen.getActiveOptions();
+						var matchingOptions = allOptions.filter(utils.textCompare(keyword));
+
+						allOptions.not(matchingOptions).filter(':selected').each(createChangeStateIterator('deselectItem'));
+						if (matchingOptions.length > 0) {
+							matchingOptions.not(':selected').each(createChangeStateIterator('selectItem'));
+						} else {
+							customOption.prop({
+								value: keyword,
+								text: keyword
+							});
+						}
+					}
+				}
+				prevValue = keyword;
+			};
+
+			searchField.on('change.chzn', onChangeHandler);
+			searchField.keyup(onChangeHandler);
+
+			if (isAutocomplete) {
+				chosenUI.bind('chzn:option-selected.search-field', function(e, option) {
+					searchField.val(option.text);
+					prevValue = option.text;
+					toggleCssClass();
+				});
+			}
 
 			return searchField;
 		},
@@ -1129,11 +1180,11 @@
 			//------------------------------------
 
 			function getSearchItems() {
-				return list.children(resultSelector);
+				return list.find(resultSelector);
 			}
 
 			function getSearchItemGroups() {
-				return list.children(groupSelector);
+				return list.find(groupSelector);
 			}
 
 			//------------------------------------
@@ -1194,38 +1245,74 @@
 
 			//------------------------------------
 
-			this.bind('chzn:search-list:compose-items', { chosenUI: this }, function(e, indexes) {
+			var composeListItems = $.proxy(function(indexes) {
 				indexes || (indexes = []);
 
-				var chosenUI = e.data.chosenUI;
-				var optionsList = $(chosenUI.el.options);
+				var chosenUI = this;
+				var optionsList = chosenUI.chosen.getActiveOptions();
 				if (indexes.length) {
 					optionsList = optionsList.filter(function() { return $.inArray(this.index, indexes) >=0; });
 				}
 				if (chosenUI.options.search.excludeDisabled) {
 					optionsList = optionsList.filter(function() { return !utils.isOptionDisabled(this); });
 				}
-				if (!chosenUI.el.multiple && chosenUI.chosen.options.singleMode.allowDeselect) {
-					optionsList = optionsList.slice(1);
-				}
-				list.children(chosenUI.getSearchItemSelector()).remove();
-				var options = $.map(optionsList, $.proxy(chosenUI.createSearchItem, chosenUI));
-				list.prepend(options);
 
-				list.children(chosenUI.getSearchItemGroupSelector()).remove();
+				list.find(chosenUI.getSearchItemSelector()).remove();
+				var searchItems = optionsList.map(function() { return chosenUI.createSearchItem(this).get(0); });
+
+				/* Protect from modifying search list content by another plugins
+				For example, some plugin for custom scroll can add own block inside list - so items must be inserted to that block, not directly to list */
+				var serviceItem = list.find(noResultsMessage).get(0) || list.find(chosenUI.itemCreator).get(0);
+				if (serviceItem) {
+					searchItems.insertBefore(serviceItem)
+				} else {
+					searchItems.prependTo(list);
+				}
+
+				list.find(chosenUI.getSearchItemGroupSelector()).remove();
 				var optgroups = $.map(chosenUI.$el.children('optgroup'), $.proxy(chosenUI.createSearchItemsGroup, chosenUI));
-				options = $(options).map(function() { return this.get(0); });
 				$.each(optgroups, function() {
 					var optgroup = $(this);
-					var children = options.filter(function() { return $.inArray($(this).data('option-index'), optgroup.data('children-indexes')) >= 0; });
+					var children = searchItems.filter(function() { return $.inArray($(this).data('option-index'), optgroup.data('children-indexes')) >= 0; });
 					if (chosenUI.options.search.excludeDisabled) {
 						children = children.not(':disabled');
 					}
 					optgroup.insertBefore(children.first());
 				});
+			}, this);
+
+			//------------------------------------
+
+			var toggleItemSelection = $.proxy(function(index, isSelected) {
+				var chosenUI = this;
+
+				var items = getSearchItems();
+				var selectedItem = chosenUI.getSearchItemByOptionIndex(index);
+				selectedItem.toggleClass(classes.selected, isSelected);
+				if (chosenUI.el.multiple) {
+					if (isSelected) {
+						chosenUI.trigger('chzn:search-list:move-selection', [true, 'rerun']);
+					}
+				}
+				if (isSelected && !chosenUI.el.multiple) { items.not(selectedItem).removeClass(classes.selected); }
+
+				var group = chosenUI.getSearchItemGroupByOptionIndex(index);
+				var groupOptions = chosenUI.getOptionForSearchItem(chosenUI.getSearchItemsFromGroup(group));
+				var isAllSelected = groupOptions.length === $(groupOptions).filter('option:selected').length;
+				group.toggleClass(classes.groupCompleted, isAllSelected);
+			}, this);
+
+			this.bind('chzn:option-selected.search-list chzn:option-deselected.search-list', function(e, option) {
+				toggleItemSelection(option.index, option.selected);
 			});
 
+			//------------------------------------
+
 			this.bind({
+				'chzn:search-list:compose-items': function(e, indexes) { composeListItems(indexes); },
+
+				'chzn:search-list:set-selected': function(e, index, isSelected) { toggleItemSelection(index, isSelected); },
+
 				'chzn:search-list:move-selection': function(e, forward, onListEnd) {
 					var items = list.children(selectableResultsSelector);
 					var movementResult = utils.moveListSelection({
@@ -1240,7 +1327,7 @@
 						// if you select some item by mouse, and then move selection by keyboard - on first mouse movement selection must return back under mouse
 						movementResult.movedFrom.unbind(eventName).bind(eventName, function() {
 							items.unbind(eventName);
-							$(this).trigger('mouseover');
+							$(this).trigger('mouseenter');
 						});
 					}
 				},
@@ -1249,8 +1336,7 @@
 					var items = list.children(selectableResultsSelector);
 					var highlightedItem = !useDataIndex ? items.eq(index) : this.ui.getSearchItemByOptionIndex(index);
 					if (!highlightedItem.length) {
-						// in single-deselect mode search item for zero option does not exits. But for convenience we do not raise an error - to do not break your custom behavior by one option changing
-						if (useDataIndex && index === 0 && this.options.singleMode.allowDeselect) {
+						if (useDataIndex && index === 0 && this.isHiddenOptionRequired()) {
 							return;
 						}
 						throw new ReferenceError(utils.format('Item with index "{0}" does not exist', [index]));
@@ -1264,23 +1350,6 @@
 
 				'chzn:search-list:clear-highlight': function() {
 					getSearchItems().add(this.ui.itemCreator).add(getSearchItemGroups()).removeClass(classes.highlighted);
-				},
-
-				'chzn:search-list:set-selected': function(e, index, isSelected) {
-					var items = getSearchItems();
-					var selectedItem = this.ui.getSearchItemByOptionIndex(index);
-					selectedItem.toggleClass(classes.selected, isSelected);
-					if (this.el.multiple) {
-						if (isSelected) {
-							this.trigger('chzn:search-list:move-selection', [true, 'rerun']);
-						}
-					}
-					if (isSelected && !this.el.multiple) { items.not(selectedItem).removeClass(classes.selected); }
-
-					var group = this.ui.getSearchItemGroupByOptionIndex(index);
-					var groupOptions = this.ui.getOptionForSearchItem(this.ui.getSearchItemsFromGroup(group));
-					var isAllSelected = groupOptions.length === $(groupOptions).filter(':selected').length;
-					group.toggleClass(classes.groupCompleted, isAllSelected);
 				},
 
 				'chzn:search-list:toggle-group': function(e, index, isCollapsed) {
@@ -1305,24 +1374,26 @@
 						items.removeClass(classes.highlighted);
 					}
 					items.removeClass(classes.noMatch);
-					this.ui.searchList.children(this.ui.getSearchItemGroupSelector()).removeClass(classes.groupCompleted);
+					this.ui.searchList.find(this.ui.getSearchItemGroupSelector()).removeClass(classes.groupCompleted);
 					noResultsMessage.hide().empty();
 					this.ui.itemCreator && this.trigger('chzn:item-creator:clear');
 				},
 
 				'chzn:search-list:filter': function(e, keyword) {
+					var chosen = this;
+
 					if (keyword === undefined) {
-						keyword = this.options.search.enabled ? this.ui.searchField.val() : '';
+						keyword = chosen.options.search.enabled ? chosen.ui.searchField.val() : '';
 					}
 
 					if (!keyword.length) {
-						this.trigger('chzn:search-list:reset-filter', true);
+						chosen.trigger('chzn:search-list:reset-filter', [true]);
 						return;
 					}
 
 					var indexes = this.search(keyword);
-					if (this.options.ui.search.ignoreSelected) {
-						indexes = $(indexes).not(this.$el.children(':selected').map(function() { return this.index; })).toArray();
+					if (chosen.options.ui.search.ignoreSelected) {
+						indexes = $(indexes).not(chosen.$el.find('option:selected').map(function() { return this.index; })).toArray();
 					}
 					var matchingItems = this.ui.getSearchItemByOptionIndex(indexes);
 
@@ -1331,9 +1402,9 @@
 					matchingItems.removeClass(classes.noMatch);
 					searchItems.not(matchingItems).addClass(classes.noMatch);
 
-					var optgroups = this.ui.searchList.children(this.ui.getSearchItemGroupSelector());
+					var optgroups = chosen.ui.searchList.find(this.ui.getSearchItemGroupSelector());
 					var matchingGroups = optgroups.filter(
-						this.ui.getSearchItemGroupByOptionIndex(
+						chosen.ui.getSearchItemGroupByOptionIndex(
 							$.map(
 								matchingItems.filter(utils.format(':not(.{0}, .{1})',[classes.selected, classes.noMatch])),
 								function(item) { return $(item).data('option-index'); }
@@ -1343,8 +1414,8 @@
 					matchingGroups.removeClass(classes.groupCompleted);
 					optgroups.not(matchingGroups).addClass(classes.groupCompleted);
 
-					if (this.options.createItems.enabled) {
-						var isExactMatch = $(this.el.options).is(function() { return this.text.toLowerCase() === keyword.toLowerCase(); });
+					if (chosen.options.createItems.enabled) {
+						var isExactMatch = this.getActiveOptions().is(utils.textCompare(keyword));
 						if (!isExactMatch) {
 							this.trigger('chzn:item-creator:render', [keyword]);
 						} else {
@@ -1352,21 +1423,22 @@
 						}
 					}
 
-					if (matchingItems.length == 0 && !(this.options.createItems.enabled && this.options.ui.search.isCreatorMatches && !isExactMatch)) {
-						noResultsMessage.html(utils.format(this.options.ui.search.noResultsText, {keyword: utils.htmlHelper.encode(keyword)})).show();
+					var isCreatorVisible = chosen.options.createItems.enabled && chosen.options.ui.search.isCreatorMatches && !isExactMatch;
+					if (matchingItems.length == 0 &&  chosen.options.ui.search.showNoResultsMessage && !isCreatorVisible) {
+						noResultsMessage.html(utils.format(chosen.options.ui.search.noResultsMessage, { keyword: utils.htmlHelper.encode(keyword) })).show();
 					} else {
 						noResultsMessage.hide().empty();
 					}
 
-					this.trigger('chzn:search-list:filtered', [keyword, matchingItems.length]);
-					searchItems.filter('.' + classes.highlighted).not(':visible').add(this.ui.itemCreator).removeClass(classes.highlighted);
-					if (this.options.ui.search.forceHighlight && !searchItems.filter('.' + classes.highlighted).length && matchingItems.length > 0) {
-						this.trigger('chzn:search-list:move-selection', [true]);
+					chosen.trigger('chzn:search-list:filtered', [keyword, matchingItems.length]);
+					searchItems.filter('.' + classes.highlighted).not(':visible').add(chosen.ui.itemCreator).removeClass(classes.highlighted);
+					if (chosen.options.ui.search.forceHighlight && !searchItems.filter('.' + classes.highlighted).length && matchingItems.length) {
+						chosen.trigger('chzn:search-list:move-selection', [true]);
 					}
 				}
 			});
 
-			this.trigger('chzn:search-list:compose-items');
+			composeListItems();
 
 			return list;
 		},
@@ -1447,30 +1519,32 @@
 			});
 
 			isSingleDeselectAllowed = this.chosen.options.singleMode.allowDeselect;
-			if (isSingleDeselectAllowed && this.el.multiple) {
-				throw new Error('"singleMode.allowDeselect" option is unavailable in multi-mode');
-			}
 
-			this.bind({
-				'chzn:single-select:set-selected': function(event, option) {
-					selectedItem.children('.dropdown-text:first').text(option.text);
-					var isEmptyOption = !option.value && option.index === 0;
-					selectedItem[isEmptyOption && isSingleDeselectAllowed ? 'addClass' : 'removeClass']('chzn-default');
-					if (isSingleDeselectAllowed) {
-						singleDeselectBtn[isEmptyOption ? 'hide' : 'show']();
+			if (!this.el.multiple) {
+				this.bind({
+					'chzn:option-selected.single-select': function(event, option) {
+						selectedItem.children('.dropdown-text:first').text(option.text);
+						var isEmptyOption = !option.value && option.index === 0;
+						selectedItem.toggleClass('chzn-default', isEmptyOption && isSingleDeselectAllowed);
+						if (isSingleDeselectAllowed) {
+							singleDeselectBtn[isEmptyOption ? 'hide' : 'show']();
+						}
 					}
+				});
+
+				if (isSingleDeselectAllowed) {
+					// in native dropdown, when no options selected, first option sets selected automatically; we do the same
+					var deselectHandler = $.proxy(this.chosen.selectItem, this.chosen, 0);
+					this.bind({
+						'chzn:option-deselected.single-select': deselectHandler
+					});
+
+					singleDeselectBtn = $('<span>', { 'class': 'single-deselect' })
+						.hide()
+						.insertBefore(selectedItem.children().last());
+
+					singleDeselectBtn.click(deselectHandler);
 				}
-			});
-
-			if (isSingleDeselectAllowed) {
-				// in native dropdown, when no options selected, first option sets selected automatically; we do the same
-				this.bind({ 'chzn:single-select:deselect': $.proxy(this.chosen.selectItem, this.chosen, 0) });
-
-				singleDeselectBtn = $('<span>', { 'class': 'single-deselect' })
-					.hide()
-					.insertBefore(selectedItem.children().last());
-
-				singleDeselectBtn.click($.proxy(this.trigger, this, 'chzn:single-select:deselect'))
 			}
 
 			return selectedItem;
@@ -1565,17 +1639,17 @@
 
 			list.on('keydown', deselectBtnSelector, function(e) {
 				switch (e.keyCode) {
-					case 8:
+					case 8: // backspace
 						e.preventDefault();
 						chosenUI.trigger('chzn:choice-list:deselect-highlighted');
 						chosenUI.trigger('chzn:container:activate');
 						break;
-					case 27:
+					case 27: // escape
 						$(document).trigger(blurEventName);
 						chosenUI.trigger('chzn:container:activate');
 						break;
 					default:
-					// no action
+						// no action
 				}
 			});
 
@@ -1613,7 +1687,7 @@
 					}
 					choices.not(choice).removeClass(classes.choiceSelected);
 				}
-				if (chosenUI.isAutosuggest() && !chosenUI.isChoicesOutside()) {
+				if (chosenUI.el.multiple && chosenUI.options.autocompleteMode.enabled && !chosenUI.isChoicesOutside()) {
 					chosenUI.trigger('chzn:container:activate.highlight');
 					if (!choices.filter(selectedChoiceSelector).length) {
 						chosenUI.keydownTarget.focus();
@@ -1622,28 +1696,26 @@
 				bindChoiceBlurWatcher();
 			});
 
-			function unrenderChoice(e, option) {
-				chosenUI.getChoiceByOptionIndex(option.index).remove();
-			}
-
 			this.bind({
-				'chzn:choice-list:select': function(e, option) {
+				'chzn:option-selected.choice-list': function(e, option) {
 					var newChoice = this.ui.createChoice(option);
-					if (!this.ui.isAutosuggest() || this.ui.isChoicesOutside()) {
+					if (!this.options.ui.autocompleteMode.enabled || this.ui.isChoicesOutside()) {
 						this.ui.choiceList.append(newChoice);
 					} else {
 						this.ui.dropdownHeader.parent().before(newChoice);
 					}
 				},
+				'chzn:option-deselected.choice-list chzn:option-removed.choice-list': function (e, option) {
+					chosenUI.getChoiceByOptionIndex(option.index).remove();
+				}
+			});
 
+			this.bind({
 				'chzn:choice-list:deselect-highlighted': function() {
 					list.children(selectedChoiceSelector).each(function() {
 						chosenUI.chosen.deselectItem($(this).data('option-index'));
 					});
 				},
-
-				'chzn:choice-list:deselect': unrenderChoice,
-				'chzn:option-removed': unrenderChoice,
 
 				'chzn:choice-list:move-selection': function(e, forward, onListEnd, options) {
 					options || (options = {});
@@ -1691,13 +1763,8 @@
 
 		initCss: function() {
 			this.container.width(this.$el.outerWidth());
-			if (this.isAutosuggest()) {
-				var text;
-				if (this.searchField) {
-					text = this.options.search.placeholder;
-				} else {
-					text = this.options.placeholder;
-				}
+			if (this.options.autocompleteMode.enabled) {
+				var text = this.searchField ? this.options.search.placeholder : this.options.placeholder;
 				(this.searchField || this.dropdownHeader).parent().css({
 					'min-width': utils.getTextWidth(text)
 				});
@@ -1755,19 +1822,19 @@
 							if (chosenUI.el.multiple) {
 								if (chosenUI.options.multiMode.switchToChoicesOnBackspace && chosenUI.choiceList.children(chosenUI.getChoiceSelector() + ':not(.disabled)').length > 0) {
 									chosenUI.trigger('chzn:choice-list:move-selection', [false, 'rerun', { focus: true, setBlurWatcher: true }]);
-								} else if (chosenUI.isAutosuggest()) {
+								} else if (chosenUI.options.autocompleteMode.enabled) {
 									chosenUI.trigger('chzn:container:deactivate');
 								}
 							}
 						}
 						break;
 					default:
-					// no action
+						// no action
 				}
 			});
 
-			if (!this.isAutosuggest() && this.chosen.options.search.enabled) {
-				this.dropdownHeader.keydown(function(e) {
+			if (!chosenUI.options.autocompleteMode.enabled && chosenUI.chosen.options.search.enabled) {
+				chosenUI.dropdownHeader.keydown(function(e) {
 					switch (e.keyCode) {
 						case 13: // enter
 							e.preventDefault(); // prevent to open dropdown by pressing enter
@@ -1939,7 +2006,7 @@
 						// no action
 						break;
 					default:
-						// no action
+					// no action
 				}
 			}
 
@@ -1976,6 +2043,40 @@
 			return option.disabled || (option.parentElement.tagName === 'OPTGROUP' && option.parentElement.disabled);
 		},
 
+		makeJqueryIterator: function(func, prop, context) {
+			var composeValue = function(originValue) {
+				var value;
+				if (prop !== undefined) {
+					if (typeof prop === 'function') {
+						value = prop.call(originValue);
+					} else if ($.isArray(prop)) {
+						value = prop[0].apply(originValue, prop.slice(1));
+					} else {
+						value = originValue[prop];
+					}
+				}
+				return value;
+			};
+
+			return function() {
+				var index = arguments[0];
+				var value = arguments[1];
+				return func.apply(context || this, [composeValue(value), index]);
+			}
+		},
+
+		textCompare: function(pattern, source) {
+			var comparator = function(source) {
+				return pattern.toLowerCase() === source.toLowerCase();
+			};
+
+			if (source === undefined) {
+				return utils.makeJqueryIterator(comparator, 'text');
+			} else {
+				return comparator(source);
+			}
+		},
+
 		// several brutal hacks™ :
 
 		getTextWidth: function(text) {
@@ -1997,5 +2098,4 @@
 			}
 		})()
 	};
-
 })(jQuery);
