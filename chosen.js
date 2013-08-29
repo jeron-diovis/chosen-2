@@ -305,6 +305,8 @@
 			if (this.options.ui.openAfterInit) {
 				this.trigger('chzn:dropdown:open');
 			}
+
+			return this;
 		},
 
 		reset: function(options) {
@@ -420,7 +422,7 @@
 
 			this.trigger('chzn:option-created', [optionNode]);
 
-			if (optionNode.selected) {
+			if (optionNode.selected || this.options.ui.createItems.selectCreated) {
 				this.selectItem(optionNode.index);
 			}
 
@@ -1573,8 +1575,7 @@
 				var keyword = chosen.ui.searchField.val();
 				chosen.bind(itemCreatedEventName, itemCreatedListener);
 				chosen.addItem({
-					text: keyword,
-					selected: chosen.ui.options.createItems.selectCreated
+					text: keyword
 				});
 			};
 
