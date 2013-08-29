@@ -948,15 +948,16 @@
 				'class': classes.join(' '),
 				'title': this.el.title
 			})
-				.on('click.chzn:container:watch-focus', '*', function(e) {
-					// emulate 'stopPropagation', to do not perform same handling multiple times, but allow use external listeners
-					if (e.target !== e.currentTarget) return;
-
+				.on('click.chzn:container:watch-focus', '', function(e) {
 					var eventName = 'chzn:container:activate';
 					if ($(e.currentTarget).closest(chosenUI.options.focusable).length > 0) {
 						eventName += '.highlight';
 					}
 					chosenUI.trigger(eventName);
+
+					if (chosenUI.options.autocompleteMode.enabled && chosenUI.options.autocompleteMode.openOnActivation) {
+						chosenUI.trigger('chzn:dropdown:open');
+					}
 				});
 
 			var blurEventName = 'click.chzn:container:blur-watcher';
@@ -1054,13 +1055,12 @@
 				}
 			});
 
-			// Trigger events instead of calling dropdown methods, to keep valid events behavior for custom listeners
 			if (chosenUI.options.closeAfterChange) {
-				chosenUI.bind({ 'chzn:option-selected.dropdown': $.proxy(this.trigger, this, 'chzn:dropdown:close') });
-			}
-
-			if (chosenUI.options.autocompleteMode.enabled && chosenUI.options.autocompleteMode.openOnActivation) {
-				chosenUI.bind({ 'chzn:container:activate.dropdown': $.proxy(this.trigger, this, 'chzn:dropdown:open') });
+				chosenUI.bind({
+					'chzn:option-selected.dropdown': function() {
+						setTimeout(function() { chosenUI.trigger('chzn:dropdown:close'); }, 1);
+					}
+				});
 			}
 
 			return dropdown;
