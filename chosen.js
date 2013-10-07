@@ -368,7 +368,8 @@
 
 			var option = this.el.options[index];
 			option.selected = true;
-			this.trigger('chzn:option-selected', option);
+			this.trigger('chzn:option-selected', [option, this.getActiveOptions().filter(':selected')]);
+			this.trigger('chzn:change', [option, this.getActiveOptions().filter(':selected')]);
 
 			return this;
 		},
@@ -376,7 +377,8 @@
 		deselectItem: function(index) {
 			var option = this.el.options[index];
 			option.selected = false;
-			this.trigger('chzn:option-deselected', option);
+			this.trigger('chzn:option-deselected', [option, this.getActiveOptions().filter(':selected')]);
+			this.trigger('chzn:change', [option, this.getActiveOptions().filter(':selected')]);
 
 			return this;
 		},
@@ -1263,7 +1265,7 @@
 				var searchItems = optionsList.map(function() { return chosenUI.createSearchItem(this).get(0); });
 
 				/* Protect from modifying search list content by another plugins
-				For example, some plugin for custom scroll can add own block inside list - so items must be inserted to that block, not directly to list */
+				 For example, some plugin for custom scroll can add own block inside list - so items must be inserted to that block, not directly to list */
 				var serviceItem = list.find(noResultsMessage).get(0) || list.find(chosenUI.itemCreator).get(0);
 				if (serviceItem) {
 					searchItems.insertBefore(serviceItem)
@@ -1650,7 +1652,7 @@
 						chosenUI.trigger('chzn:container:activate');
 						break;
 					default:
-						// no action
+					// no action
 				}
 			});
 
@@ -1830,7 +1832,7 @@
 						}
 						break;
 					default:
-						// no action
+					// no action
 				}
 			});
 
