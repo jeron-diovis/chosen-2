@@ -1524,6 +1524,15 @@
 
 			isSingleDeselectAllowed = this.chosen.options.singleMode.allowDeselect;
 
+			var deselectHandler = $.proxy(this.chosen.selectItem, this.chosen, 0);
+			if (isSingleDeselectAllowed) {
+				singleDeselectBtn = $('<span>', { 'class': 'single-deselect' })
+					.hide()
+					.insertBefore(selectedItem.children().last());
+
+				singleDeselectBtn.click(deselectHandler);
+			}
+
 			if (!this.el.multiple) {
 				this.bind({
 					'chzn:option-selected.single-select': function(event, option) {
@@ -1533,22 +1542,11 @@
 						if (isSingleDeselectAllowed) {
 							singleDeselectBtn[isEmptyOption ? 'hide' : 'show']();
 						}
-					}
-				});
+					},
 
-				if (isSingleDeselectAllowed) {
 					// in native dropdown, when no options selected, first option sets selected automatically; we do the same
-					var deselectHandler = $.proxy(this.chosen.selectItem, this.chosen, 0);
-					this.bind({
-						'chzn:option-deselected.single-select': deselectHandler
-					});
-
-					singleDeselectBtn = $('<span>', { 'class': 'single-deselect' })
-						.hide()
-						.insertBefore(selectedItem.children().last());
-
-					singleDeselectBtn.click(deselectHandler);
-				}
+					'chzn:option-deselected.single-select': deselectHandler
+				});
 			}
 
 			return selectedItem;
