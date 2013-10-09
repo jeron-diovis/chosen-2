@@ -81,6 +81,10 @@
 
 				placeholder: 'Select an option',
 
+				singleMode: {
+					headerItemTemplate: '{text}'
+				},
+
 				autocompleteMode: {
 					enabled: false,
 					openOnActivation: true // whether to show dropdown when container gets activated
@@ -198,7 +202,7 @@
 
 		// TODO: get rid of this
 		// re-run filtering, to decide whether selected or deselected item should be displayed according to current options
-		this.bind('chzn:option-selected.sys chzn:option-deselected.sys', $.proxy(function() { this.trigger('chzn:search-list:filter'); }, this));
+		this.bind('chzn:option-selected:sys chzn:option-deselected:sys', $.proxy(function() { this.trigger('chzn:search-list:filter'); }, this));
 
 		this.init();
 
@@ -287,7 +291,7 @@
 			// TODO: need optimization, some 'batch select'. Too much events on start
 			$.each(this.getActiveOptions(), $.proxy(function(index, option) {
 				if (option.selected) {
-					this.selectItem(option.index);
+					this.selectItem(option.index, { silent: true });
 				}
 			}, this));
 
@@ -360,7 +364,7 @@
 			return (optionConfig.text !== undefined) && !this.getActiveOptions().is(utils.textCompare(optionConfig.text));
 		},
 
-		selectItem: function(index) {
+		selectItem: function(index, options) {
 			if (this.isSelectionLimitReached()) {
 				this.trigger('chzn:max-selected');
 				return false;
@@ -368,17 +372,29 @@
 
 			var option = this.el.options[index];
 			option.selected = true;
-			this.trigger('chzn:option-selected', [option, this.getActiveOptions().filter(':selected')]);
-			this.trigger('chzn:change', [option, this.getActiveOptions().filter(':selected')]);
+
+			options || (options = {});
+			var eventArgs = [option, this.getActiveOptions().filter(':selected')];
+			this.trigger('chzn:option-selected:sys', eventArgs);
+			if (!options.silent) {
+				this.trigger('chzn:option-selected', eventArgs);
+			}
+			this.trigger('chzn:change', eventArgs);
 
 			return this;
 		},
 
-		deselectItem: function(index) {
+		deselectItem: function(index, options) {
 			var option = this.el.options[index];
 			option.selected = false;
-			this.trigger('chzn:option-deselected', [option, this.getActiveOptions().filter(':selected')]);
-			this.trigger('chzn:change', [option, this.getActiveOptions().filter(':selected')]);
+
+			options || (options = {});
+			var eventArgs = [option, this.getActiveOptions().filter(':selected')];
+			this.trigger('chzn:option-deselected:sys', eventArgs);
+			if (!options.silent) {
+				this.trigger('chzn:option-deselected', eventArgs);
+			}
+			this.trigger('chzn:change', eventArgs);
 
 			return this;
 		},
@@ -1061,7 +1077,7 @@
 
 			if (chosenUI.options.closeAfterChange) {
 				chosenUI.bind({
-					'chzn:option-selected.dropdown': function() {
+					'chzn:option-selected:sys.dropdown': function() {
 						setTimeout(function() { chosenUI.trigger('chzn:dropdown:close'); }, 1);
 					}
 				});
@@ -1143,7 +1159,7 @@
 			searchField.keyup(onChangeHandler);
 
 			if (isAutocomplete) {
-				chosenUI.bind('chzn:option-selected.search-field', function(e, option) {
+				chosenUI.bind('chzn:option-selected:sys.search-field', function(e, option) {
 					searchField.val(option.text);
 					prevValue = option.text;
 					toggleCssClass();
@@ -1306,7 +1322,7 @@
 				group.toggleClass(classes.groupCompleted, isAllSelected);
 			}, this);
 
-			this.bind('chzn:option-selected.search-list chzn:option-deselected.search-list', function(e, option) {
+			this.bind('chzn:option-selected:sys.search-list chzn:option-deselected:sys.search-list', function(e, option) {
 				toggleItemSelection(option.index, option.selected);
 			});
 
@@ -1535,8 +1551,9 @@
 
 			if (!this.el.multiple) {
 				this.bind({
-					'chzn:option-selected.single-select': function(event, option) {
-						selectedItem.children('.dropdown-text:first').text(option.text);
+					'chzn:option-selected:sys.single-select': function(event, option) {
+						var ui = this.ui;
+						selectedItem.children('.dropdown-text:first').html(ui.render(ui.options.singleMode.headerItemTemplate, ui.composeRenderAttributes(option)));
 						var isEmptyOption = !option.value && option.index === 0;
 						selectedItem.toggleClass('chzn-default', isEmptyOption && isSingleDeselectAllowed);
 						if (isSingleDeselectAllowed) {
@@ -1545,7 +1562,7 @@
 					},
 
 					// in native dropdown, when no options selected, first option sets selected automatically; we do the same
-					'chzn:option-deselected.single-select': deselectHandler
+					'chzn:option-deselected:sys.single-select': deselectHandler
 				});
 			}
 
@@ -1698,7 +1715,7 @@
 			});
 
 			this.bind({
-				'chzn:option-selected.choice-list': function(e, option) {
+				'chzn:option-selected:sys.choice-list': function(e, option) {
 					var newChoice = this.ui.createChoice(option);
 					if (!this.options.ui.autocompleteMode.enabled || this.ui.isChoicesOutside()) {
 						this.ui.choiceList.append(newChoice);
@@ -1706,7 +1723,7 @@
 						this.ui.dropdownHeader.parent().before(newChoice);
 					}
 				},
-				'chzn:option-deselected.choice-list chzn:option-removed.choice-list': function (e, option) {
+				'chzn:option-deselected:sys.choice-list chzn:option-removed.choice-list': function (e, option) {
 					chosenUI.getChoiceByOptionIndex(option.index).remove();
 				}
 			});
