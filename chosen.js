@@ -1524,7 +1524,7 @@
 				'tabindex': -1
 			})
 				.append([
-					$('<span>', { 'class': 'dropdown-text' }).text(this.options.placeholder),
+					$('<span>', { 'class': 'dropdown-text' }).html(this.options.placeholder),
 					$('<div>', { 'class': 'dropdown-icon' }).append(document.createElement('b'))
 				]);
 
