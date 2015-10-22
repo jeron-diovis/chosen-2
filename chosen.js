@@ -353,7 +353,7 @@
 		},
 
 		getActiveOptions: function() {
-			var options = $(this.el.options);
+			var options = $(this.el).find("option");
 			if (this.isHiddenOptionRequired()) {
 				options = options.slice(1);
 			}
